@@ -1,0 +1,1594 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Proton Maze</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: lobby + round-by-round bracket on one page grid; a match is a question card beside a lives panel, then your maze beside a live view of your opponent’s maze */
+:root{
+  --bg:#ECF0F6; --surface:#FFFFFF; --surface2:#F4F6FA; --ink:#121A2C; --muted:#586379; --line:#D1D8E4;
+  --red:#CF3F2C; --red-soft:#FBE4DF; --blue:#2C5CD3; --blue-soft:#DFE7FB;
+  --good:#16884B; --good-soft:#D8F1E2; --gold:#B87C06; --ballline:rgba(18,26,44,.35);
+  --field:#000000; --fieldInk:#FFFFFF;
+  --display:'Bricolage Grotesque','IBM Plex Sans KR',system-ui,sans-serif;
+  --body:'IBM Plex Sans KR','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1320; --surface:#172034; --surface2:#1E2842; --ink:#E8EDF7; --muted:#98A3BB; --line:#2C3854;
+  --red:#FF6C58; --red-soft:#3A2024; --blue:#6B96FF; --blue-soft:#1D2B50;
+  --good:#3ED08B; --good-soft:#15362A; --gold:#F4BD3E; --ballline:rgba(0,0,0,.55); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1320; --surface:#172034; --surface2:#1E2842; --ink:#E8EDF7; --muted:#98A3BB; --line:#2C3854;
+  --red:#FF6C58; --red-soft:#3A2024; --blue:#6B96FF; --blue-soft:#1D2B50;
+  --good:#3ED08B; --good-soft:#15362A; --gold:#F4BD3E; --ballline:rgba(0,0,0,.55); color-scheme:dark}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.joinf{display:flex;flex-direction:column;gap:6px}
+.joinf label{font-weight:600}
+.joinrow{display:flex;gap:10px;flex-wrap:wrap}
+.joinrow input{font:inherit;font-size:18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);color:var(--ink);flex:1 1 200px;min-width:0}
+.linkbox{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;background:var(--surface2);border-radius:10px}
+.linkbox code{font-family:var(--mono);font-size:14px;overflow-wrap:anywhere;flex:1 1 200px;min-width:0}
+.setup ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:6px}
+#app{min-height:100%;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.1}
+p{margin:0}
+.ko{font-family:var(--body);font-weight:500;color:var(--muted)}
+.eyebrow{margin:0;font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+[hidden]{display:none!important}
+button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.5}
+button:focus-visible,input:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+kbd{font-family:var(--mono);font-size:.8em;padding:1px 6px;border:1px solid currentColor;border-radius:5px;opacity:.75}
+.fx{font-family:var(--display);font-weight:700;white-space:nowrap}
+.fx sub,.fx sup{font-size:.58em;line-height:0}
+.fx sub{vertical-align:-.28em}.fx sup{vertical-align:.62em}
+
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 16px;font-weight:600;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:hover:not(:disabled){border-color:var(--muted)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.big{padding:16px 22px;font-size:18px}
+.btn.sm{padding:6px 12px;font-size:14px}
+.btn.warn{border-color:var(--red);color:var(--red)}
+.btn.ghost{background:transparent}
+
+/* ---------- page frame ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;display:flex;flex-direction:column;gap:20px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.brand svg{width:92px;height:auto;flex:none}
+.brand h1{font-size:clamp(30px,4.4vw,46px);font-weight:800;letter-spacing:-.02em}
+.brand p{color:var(--muted);font-weight:500}
+.me{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 18px;min-width:0}
+.me img{width:34px;height:34px;border-radius:50%;flex:none}
+.me span{display:flex;flex-direction:column;line-height:1.15;min-width:0}
+.me b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.me .mail{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px}
+.me .btn{margin-left:auto;white-space:nowrap;flex:none}
+.gbtn{display:inline-flex;align-items:center;gap:12px;background:#fff;color:#1f1f1f;border:1px solid #747775;border-radius:999px;padding:12px 22px;font:600 16px/1.2 system-ui,sans-serif;cursor:pointer;min-height:48px}
+.gbtn svg{width:22px;height:22px;flex:none}
+.gbtn:hover{background:#f2f2f2}.gbtn:disabled{opacity:.6;cursor:wait}
+.gbtn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.status .lerr,.lerr{color:#B42318;font-weight:600}
+@media (max-width:560px){.me{border-radius:16px;width:100%}.me .mail{max-width:none}}
+.me .role{white-space:nowrap}
+.lwarn{margin-top:10px;padding:12px 14px;border:1px solid #F0B429;background:rgba(240,180,41,.12);border-radius:10px}
+.lwarn .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.role{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel h2{font-size:20px;font-weight:700;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.panel h2 .ko{font-size:15px}
+.phead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.count{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.note{font-size:14px;color:var(--muted)}
+.note b{color:var(--ink)}
+
+/* status band */
+.status{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:20px 24px;border-radius:16px;border:1px solid var(--line);background:var(--surface)}
+.status.go{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.status.gold{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.status h2{font-size:clamp(22px,3vw,30px);font-weight:800}
+.status p{color:var(--muted);margin-top:4px}
+.status .acts{display:flex;gap:8px;flex-wrap:wrap}
+
+/* lobby */
+.plist{display:flex;flex-wrap:wrap;gap:8px}
+.pchip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;background:var(--surface2);border:1px solid var(--line);font-weight:600;max-width:100%}
+.pchip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pchip.me{border-color:var(--ink)}
+.pchip button{border:0;background:none;padding:0 2px;color:var(--muted);font-size:17px;line-height:1}
+.empty{padding:18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);text-align:center}
+.types{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media (max-width:480px){.types{grid-template-columns:minmax(0,1fr)}}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.chk input{margin-top:4px;accent-color:var(--ink);width:16px;height:16px}
+.chk span{display:flex;flex-direction:column;line-height:1.3}
+.chk b{font-size:15px}.chk small{color:var(--muted);font-size:13px}
+.setrow{display:flex;flex-direction:column;gap:6px}
+.setrow .lbl{font-size:14px;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg label{position:relative}
+.seg input{position:absolute;opacity:0;inset:0;margin:0}
+.seg span{display:block;padding:7px 14px;border:1px solid var(--line);border-radius:999px;font-weight:600;font-size:15px;font-variant-numeric:tabular-nums;cursor:pointer}
+.seg input:checked+span{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.seg input:focus-visible+span{outline:3px solid var(--blue);outline-offset:2px}
+.plan{font-family:var(--mono);font-size:14px;padding:10px 12px;border-radius:10px;background:var(--surface2)}
+
+/* pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;padding:3px 10px;border-radius:999px;background:var(--surface2);color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.pill.q{background:var(--blue-soft);color:var(--blue);border-color:transparent}
+.pill.p{background:var(--red-soft);color:var(--red);border-color:transparent}
+.pill.d{background:var(--good-soft);color:var(--good);border-color:transparent}
+.pill.dot::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+
+/* live matches */
+.live{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.lm{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface2);min-width:0}
+.lm .vsl{font-family:var(--display);font-weight:700;font-size:18px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;min-width:0}
+.lm .vsl em{font-style:normal;color:var(--muted);font-size:14px;font-weight:500}
+.lm .row{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.lm .sub{font-size:13px;color:var(--muted)}
+.award{display:flex;gap:6px;flex-wrap:wrap;border-top:1px dashed var(--line);padding-top:10px}
+
+/* bracket */
+.bracket-scroll{overflow-x:auto;padding-bottom:6px}
+.bracket{display:flex;gap:24px;min-width:max-content;align-items:stretch}
+.round{display:flex;flex-direction:column;gap:12px;width:220px}
+.round h3{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;flex-direction:column}
+.round h3 span{font-family:var(--body);letter-spacing:0;text-transform:none;font-size:13px}
+.round-body{flex:1;display:flex;flex-direction:column;justify-content:space-around;gap:10px}
+.mc{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;text-align:left;padding:0;width:100%}
+.mc .r{display:flex;justify-content:space-between;gap:8px;padding:7px 12px;font-weight:500;min-width:0}
+.mc .r+.r{border-top:1px solid var(--line)}
+.mc .r span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc .r .sc{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.mc .r.win{font-weight:700}
+.mc .r.win .sc{color:var(--good)}
+.mc .r.lose{color:var(--muted)}
+.mc .r.lose span:first-child{text-decoration:line-through}
+.mc .r.mine span:first-child::after{content:" · you";font-family:var(--mono);font-size:11px;color:var(--muted)}
+.standings{display:flex;flex-direction:column;gap:6px}
+@media (min-width:861px){.grid2.sr{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}}
+.mc.st .r{padding:8px 12px}
+.mc.st .sc b{color:var(--ink)}
+.glab{font-size:13px;font-weight:600;color:var(--muted);margin-top:4px}
+.round-body.rb-top{justify-content:flex-start}
+.mc .foot{padding:5px 12px;border-top:1px solid var(--line);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;gap:6px}
+button.mc:hover{border-color:var(--muted)}
+.mc.bye .r{color:var(--muted);font-style:italic}
+
+/* champion */
+.tile{width:min(240px,100%);aspect-ratio:1/1.08;box-sizing:border-box;border:3px solid var(--gold);border-radius:20px;background:var(--surface);position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:18px;flex:none}
+.tile .tz{position:absolute;top:12px;left:16px;font-family:var(--mono);font-size:20px;font-weight:600;color:var(--gold)}
+.tile .tsym{font-family:var(--display);font-weight:800;font-size:84px;line-height:1;color:var(--gold)}
+.tile .tname{font-family:var(--display);font-weight:800;font-size:22px;text-align:center;overflow-wrap:anywhere;line-height:1.1}
+.champ{display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+
+/* how to play */
+.how ol{margin:0;padding-left:22px;display:flex;flex-direction:column;gap:10px}
+.how li span{display:block;color:var(--muted);font-size:14px}
+details.panel{display:block}
+details.panel>*+*{margin-top:12px}
+details.how summary{cursor:pointer;font-family:var(--display);font-weight:700;font-size:20px}
+details.how[open] summary{margin-bottom:12px}
+
+/* ---------- match screens ---------- */
+.mwrap{max-width:1240px;margin:0 auto;padding-block:16px 28px;display:flex;flex-direction:column;gap:16px}
+.mhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.vs{font-size:clamp(24px,3.4vw,36px);font-weight:800;display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;min-width:0}
+.vs .l{color:var(--red)}.vs .r{color:var(--blue)}
+.vs em{font-style:normal;font-size:.55em;color:var(--muted);font-weight:600}
+.vs small,.you{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.quiz{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:860px){.quiz{grid-template-columns:minmax(0,1fr)}}
+.qcard{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.qtop{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tnum{font-family:var(--display);font-size:30px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:0;line-height:1}
+.tnum.low{color:var(--red)}
+.tbar{height:10px;border-radius:99px;background:var(--surface2);overflow:hidden;border:1px solid var(--line)}
+.tbar i{display:block;height:100%;background:var(--ink);transform-origin:left center}
+.tbar.low i{background:var(--red)}
+.prompt{font-size:clamp(22px,2.6vw,32px);font-weight:800;text-align:center}
+.prompt-ko{margin-top:-6px;text-align:center;font-size:clamp(15px,1.6vw,20px);color:var(--muted);font-weight:500}
+.stage{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;min-height:110px}
+.big{font-size:clamp(44px,6.5vw,84px);line-height:1}
+.big .fx{font-weight:800}
+.chips{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.chip{background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:10px 18px;display:flex;flex-direction:column;align-items:center;min-width:110px}
+.chip small{font-size:13px;color:var(--muted);font-weight:500}
+.chip b{font-family:var(--display);font-size:clamp(34px,5vw,58px);font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
+.formrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+.formrow .arrow-t{font-family:var(--display);font-weight:700;font-size:clamp(22px,3vw,34px);color:var(--muted);white-space:nowrap}
+.formrow .q{color:var(--muted)}
+.hunt{font-family:var(--display);font-weight:800;font-size:clamp(44px,7vw,92px);letter-spacing:-.02em;line-height:1}
+.hunt small{display:block;font-family:var(--body);font-size:.32em;font-weight:500;color:var(--muted);letter-spacing:0;margin-top:6px}
+.model{width:min(100%,360px);height:auto}
+.legend{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:13px;height:13px;border-radius:50%;display:inline-block;border:1px solid var(--ballline)}
+.qopts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.qopts{grid-template-columns:minmax(0,1fr)}}
+.qopt{display:flex;align-items:center;gap:12px;min-height:64px;padding:10px 14px;border-radius:14px;border:2px solid var(--line);background:var(--surface2);font-size:clamp(17px,1.9vw,23px);text-align:left;min-width:0}
+.qopt:hover:not(:disabled){border-color:var(--muted)}
+.qopt:disabled{cursor:default;opacity:1}
+.qopt .k{flex:none;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;font-family:var(--mono);font-size:15px;font-weight:600;background:var(--ink);color:var(--bg)}
+.qopt .lab{min-width:0;display:flex;flex-direction:column;line-height:1.15}
+.opt-en{font-family:var(--display);font-weight:700}
+.opt-ko{font-size:.55em;color:var(--muted);font-weight:500}
+.num{font-family:var(--display);font-weight:800;font-variant-numeric:tabular-nums}
+.qopt.right{background:var(--good-soft);border-color:var(--good)}
+.qopt.wrong{border-color:var(--red);text-decoration:line-through;animation:shake .35s}
+.qopt.dim{opacity:.45}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.fb{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;align-items:center;text-align:center}
+.fb .v{font-family:var(--display);font-weight:800;font-size:clamp(22px,2.4vw,28px)}
+.fb .v.ok{color:var(--good)}.fb .v.no{color:var(--red)}
+.fb .ex{max-width:62ch;font-size:16px}
+.fb .ex .ko{display:block;font-size:.92em;margin-top:2px}
+.waitbox{align-items:center;text-align:center;padding-block:36px}
+.waitbox h3{font-size:clamp(26px,3.4vw,40px);font-weight:800}
+
+/* paddle panel */
+.pads{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.pads h3{font-size:18px;font-weight:700}
+.pads-row{display:flex;gap:14px;justify-content:center}
+.pp{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;flex:1;max-width:130px}
+.pp-field{position:relative;width:100%;aspect-ratio:3/4;background:var(--field);border-radius:8px;overflow:hidden}
+.pp-net{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:repeating-linear-gradient(var(--fieldInk) 0 8px,transparent 8px 16px);opacity:.45}
+.pp-pad{position:absolute;top:50%;width:8px;height:var(--h);background:var(--fieldInk);transform:translateY(-50%);transition:height .9s cubic-bezier(.34,1.56,.64,1)}
+.pp-pad.l{left:12px}.pp-pad.r{right:12px}
+.pp-pop{position:absolute;left:0;right:0;top:10px;text-align:center;font-family:var(--mono);font-weight:600;font-size:15px;color:var(--fieldInk);opacity:0;pointer-events:none}
+.pp-pop.go{animation:pop 1.4s ease-out}
+.pp-field.flash{animation:flash .9s ease-out}
+@keyframes pop{0%{opacity:0;transform:translateY(12px)}20%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+@keyframes flash{0%{box-shadow:0 0 0 4px var(--good)}100%{box-shadow:0 0 0 0 transparent}}
+.pp-lab{display:flex;flex-direction:column;align-items:center;line-height:1.2;min-width:0;max-width:100%}
+.pp-lab b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.pp-lab .pct{font-family:var(--mono);font-size:14px;color:var(--muted)}
+.pp.L .pp-lab b{color:var(--red)}.pp.R .pp-lab b{color:var(--blue)}
+.dots{display:flex;gap:5px}
+.dots i{width:12px;height:12px;border-radius:50%;border:2px solid var(--line)}
+.dots i.ok{background:var(--good);border-color:var(--good)}
+.dots i.no{background:var(--red);border-color:var(--red)}
+
+/* pong */
+.pbar{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center}
+.pn{font-family:var(--display);font-weight:800;font-size:clamp(18px,2.4vw,28px);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pn.L{color:var(--red)}.pn.R{color:var(--blue);text-align:right}
+.pmid{display:flex;gap:8px;align-items:center}
+.pongs{display:grid;gap:14px;align-items:center;grid-template-columns:auto minmax(0,1fr)}
+.pongs.right{grid-template-columns:minmax(0,1fr) auto}
+.pongs.right .ctrl{order:2}
+.pongs.watch{grid-template-columns:minmax(0,1fr)}
+.cvwrap{position:relative;display:flex;justify-content:center;min-width:0}
+.cvbox{position:relative}
+#cv{display:block;background:var(--field);border-radius:4px;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%}
+.cvmsg{position:absolute;inset:0;display:grid;place-items:center;color:var(--fieldInk);font-family:var(--mono);font-size:17px;text-align:center;padding:24px;pointer-events:none}
+.cvmsg:empty{display:none}
+.cvmsg span{background:var(--field);padding:6px 12px}
+.ctrl{display:flex;flex-direction:column;gap:12px}
+.arrow{width:clamp(88px,11vw,130px);height:clamp(110px,24vh,210px);border-radius:18px;border:2px solid var(--line);background:var(--surface);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;display:grid;place-items:center;padding:0}
+.arrow svg{width:44%;height:auto;fill:currentColor;pointer-events:none}
+.arrow.held{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.phint{text-align:center;font-size:14px;color:var(--muted)}
+@media (max-width:720px), (orientation:portrait) and (max-width:1000px){
+  .pongs,.pongs.right{grid-template-columns:minmax(0,1fr)}
+  .ctrl{flex-direction:row;justify-content:center;order:2}
+  .arrow{height:96px;width:min(42vw,200px)}
+}
+.result{max-width:600px;width:100%;margin:4vh auto 0;align-items:center;text-align:center;padding:32px}
+.result h2{font-size:clamp(32px,5vw,52px);font-weight:800}
+.fscore{font-family:var(--mono);font-size:clamp(44px,7vw,72px);font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.fscore .l{color:var(--red)}.fscore .r{color:var(--blue)}
+.result .acts{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.switch{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+.lv-col{display:flex;flex-direction:column;gap:12px}
+.lv{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2)}
+.lv.L b{color:var(--red)}.lv.R b{color:var(--blue)}
+.lv-slots{display:flex;gap:8px}
+.slot{width:42px;height:42px;display:grid;place-items:center;border-radius:50%;border:2px dashed var(--line)}
+.slot svg{width:36px;height:36px;opacity:0;transform:scale(.3);transition:opacity .3s,transform .6s cubic-bezier(.34,1.56,.64,1)}
+.slot.on{border-color:transparent}
+.slot.on svg{opacity:1;transform:scale(1)}
+.slot.pop{animation:lifepop 1s ease-out}
+@keyframes lifepop{0%{box-shadow:0 0 0 0 var(--good)}50%{box-shadow:0 0 0 10px transparent}}
+.lv .pct{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.mz{display:grid;grid-template-columns:minmax(0,1fr) minmax(200px,280px);gap:16px;align-items:start}
+.mzmain{position:relative;display:flex;justify-content:center;min-width:0}
+.mzmain canvas,.mzwatch canvas,.mzopp canvas{display:block;background:#050816;border-radius:8px;image-rendering:pixelated;max-width:100%}
+#mzc{touch-action:none;user-select:none;-webkit-user-select:none}
+.mzside{display:flex;flex-direction:column;gap:14px;align-items:center;min-width:0}
+.mzopp{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%}
+.oppinfo{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:center}
+.dpad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:6px;touch-action:none}
+.dpad button{border:2px solid var(--line);background:var(--surface);border-radius:14px;font-size:24px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.dpad button.held{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.dpad [data-d=u]{grid-column:2;grid-row:1}.dpad [data-d=l]{grid-column:1;grid-row:2}.dpad [data-d=r]{grid-column:3;grid-row:2}.dpad [data-d=d]{grid-column:2;grid-row:3}
+.mzwatch{display:flex;gap:16px;justify-content:center}
+@media (max-width:860px), (orientation:portrait) and (max-width:1100px){
+  .mz{grid-template-columns:minmax(0,1fr)}
+  .mzside{flex-direction:row;justify-content:center;align-items:center}
+  .mzopp{width:auto}
+}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:12px;z-index:40;max-width:calc(100% - 32px);font-weight:600;box-sizing:border-box}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="g-H" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C3C8D2"/></radialGradient>
+    <radialGradient id="g-C" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#6A6F7A"/><stop offset="1" stop-color="#1C1F25"/></radialGradient>
+    <radialGradient id="g-N" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#7DA2FF"/><stop offset="1" stop-color="#2546B5"/></radialGradient>
+    <radialGradient id="g-O" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#FF7C68"/><stop offset="1" stop-color="#B3281A"/></radialGradient>
+    <radialGradient id="g-Cl" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#7EE07F"/><stop offset="1" stop-color="#1F842A"/></radialGradient>
+  </defs>
+</svg>
+
+<div id="app"></div>
+
+<!-- Firebase SDK (compat build) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+/* =====================================================================
+   ① Firebase 설정 붙여 넣기
+   Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹) → SDK 설정 및 구성 → "구성(Config)"에 나오는
+   firebaseConfig 값을 아래 따옴표 안에 그대로 복사하세요.
+   ===================================================================== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBRxghNIuVxyMqeqaPTA8anzN-t6_6YXpI",
+  authDomain: "proton-maze.firebaseapp.com",
+  databaseURL: "https://proton-maze-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "proton-maze",
+  storageBucket: "proton-maze.firebasestorage.app",
+  messagingSenderId: "287459814499",
+  appId: "1:287459814499:web:c6f42388116b57c38e1c56"
+};
+
+/* ② 학교 계정만 받으려면 메일 주소의 @ 뒷부분을 따옴표 안에 쓰세요. 예: "his.ac.kr"
+      비워 두면("") 모든 구글 계정으로 로그인할 수 있습니다. */
+const SCHOOL_DOMAIN = "his.sc.kr";
+
+/* ================= seeded randomness ================= */
+let RNG=Math.random;
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function withSeed(seed,fn){const prev=RNG;RNG=mulberry(seed);try{return fn()}finally{RNG=prev}}
+const rnd=a=>a[Math.floor(RNG()*a.length)];
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(RNG()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const uniq=a=>[...new Set(a)];
+const $=s=>document.querySelector(s);
+const app=document.getElementById('app');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ================= question bank =================
+   Built from the Grade 9 lesson folder: each unit's worksheet "Check Your Understanding" items
+   (verbatim, with the answer key's reasons) plus multiple-choice items made from its Practice
+   tasks and answer key. In every item the FIRST option is the correct one; options are shuffled
+   for display (the same order for both players). Text markup: X_2 = subscript, ^{2+} = superscript. */
+const UNITS={
+  1:['Atoms, elements & formulas','원소·원소 기호·화학식','4-1'],
+  2:['Inside the atom & periodic table','원자의 구조·주기율표','4-2'],
+  3:['Atoms & molecules','원자와 분자','4-3'],
+  4:['Ions','이온','4-4'],
+  5:['Ionic compounds','이온 화합물 (심화)','4-5'],
+  6:['Physical vs chemical change','물리 변화와 화학 변화','Ⅰ-1'],
+  7:['Chemical equations','화학 반응식','Ⅰ-2']
+};
+const ALLUNITS=Object.fromEntries(Object.keys(UNITS).map(k=>[k,true]));
+const Q=(u,q,ko,o,ex,exko,s)=>({u,q,ko,o,ex,exko,s});
+const BANK_RAW=[
+/* ---------- 4-1 Building Blocks of Matter ---------- */
+Q(1,'Which is the basic particle that makes up all matter?','모든 물질을 이루는 기본 입자는?',['Atom','Element','Compound','Formula'],'Atoms are the basic particles of all matter. An element is a kind of substance, not the particle itself.','원자는 물질을 이루는 기본 입자. 원소는 물질의 종류(성분)이지 입자 자체가 아님.'),
+Q(1,'Which substance is an element?','원소에 해당하는 물질은?',['Helium (He)','Water (H_2O)','Methane (CH_4)','Salt (NaCl)'],'He is made of only one kind of atom. CH_4 and NaCl have two kinds.','He는 한 종류의 원자로만 이루어짐. CH₄, NaCl은 두 종류.'),
+Q(1,'Which element symbol is written correctly?','원소 기호를 바르게 쓴 것은?',['Fe (iron)','CA (calcium)','al (aluminum)','MG (magnesium)'],'First letter capital, second letter small: Fe.','첫 글자 대문자 + 둘째 글자 소문자.'),
+Q(1,'What does the “3” in NH_3 tell us?','NH₃의 3이 뜻하는 것은?',['There are 3 hydrogen atoms','There are 3 ammonia particles','There are 3 nitrogen atoms','There are 3 kinds of atoms'],'A subscript counts the atoms of the element right before it (H).','아래 첨자는 바로 앞 원소(H)의 원자 수.','NH_3'),
+Q(1,'How many atoms are in one CH_4 particle?','CH₄ 한 개를 이루는 원자 수는?',['5','4','1','3'],'C 1 + H 4 = 5. The 1 for carbon is not written.','C 1 + H 4 = 5. 생략된 1(탄소)을 빼먹지 않기.','CH_4'),
+Q(1,'Which pair are BOTH compounds?','두 물질이 모두 화합물인 것은?',['CO_2 and NH_3','O_2 and O_3','Cl_2 and NaCl','He and H_2O'],'CO_2 and NH_3 each have two kinds of atoms. O_3 has 3 atoms but only one kind.','CO₂, NH₃ 모두 두 종류의 원자. O₃은 원자 3개지만 한 종류.'),
+Q(1,'How many atoms are there in total in 3CO_2?','3CO₂에 들어 있는 원자는 모두 몇 개인가?',['9','6','5','3'],'3 × (1 + 2) = 9.','3 × (1 + 2) = 9. 계수만 보거나 O만 세지 않기.','3CO_2'),
+Q(1,'A box holds 4 particles. Each has 1 N atom and 3 H atoms. Which matches?','질소 원자 1개와 수소 원자 3개로 된 입자 4개를 바르게 나타낸 것은?',['4NH_3','N_4H_12','NH_12','4N3H'],'4 particles → coefficient 4; one particle is NH_3 → 4NH_3.','입자 4개 → 계수 4, 한 입자 NH₃ → 4NH₃.'),
+Q(1,'Water is split by electricity. Which gas collects at the (−) electrode?','물의 분해 실험에서 (−)극 쪽에 모이는 기체는?',['Hydrogen','Oxygen','Nitrogen','Carbon dioxide'],'(−): hydrogen, more volume, burns with a “pop”. (+): oxygen, a glowing splint flares up.','(−)극: 수소(부피 2, ‘펑’ 소리). (+)극: 산소(불씨가 타오름).'),
+Q(1,'In water decomposition, what is the volume ratio hydrogen : oxygen?','물의 분해에서 수소 : 산소의 부피비는?',['2 : 1','1 : 2','1 : 1','3 : 1'],'Hydrogen collects twice as much as oxygen.','수소가 산소의 2배 모인다.','H_2O'),
+Q(1,'Why do we add a little NaOH to water before splitting it?','물의 분해 실험에서 수산화 나트륨을 넣는 까닭은?',['Pure water barely conducts electricity','It makes more oxygen gas','It colours the gases','It stops hydrogen from burning'],'Pure water hardly lets current flow; NaOH helps the current flow.','순수한 물은 전류가 거의 흐르지 않음.'),
+Q(1,'O_2 has two atoms in each particle. What is oxygen gas?','O₂는 원자 2개로 되어 있다. 산소 기체는?',['An element, because it has one kind of atom','A compound, because it has two atoms','A mixture of two gases','An ion'],'Element vs compound depends on the KIND of atoms, not the number.','판단 기준은 원자의 개수가 아니라 종류.','O_2'),
+Q(1,'What is the symbol for sodium?','나트륨의 원소 기호는?',['Na','So','S','N'],'From the Latin name natrium.','라틴어 natrium에서 온 기호.'),
+Q(1,'What is the symbol for iron?','철의 원소 기호는?',['Fe','Ir','I','F'],'From the Latin name ferrum.','라틴어 ferrum에서 온 기호.'),
+Q(1,'What is the symbol for potassium?','칼륨의 원소 기호는?',['K','P','Po','Pt'],'From the Latin name kalium.','라틴어 kalium에서 온 기호.'),
+Q(1,'Which element has the symbol Ag?','원소 기호 Ag는 어떤 원소인가?',['Silver','Gold','Argon','Aluminum'],'Ag comes from the Latin argentum (silver). Gold is Au.','Ag = 은 (argentum). 금은 Au.','Ag'),
+Q(1,'What does CO (not Co) mean?','CO(Co가 아님)가 뜻하는 것은?',['A compound of carbon and oxygen','The element cobalt','The same thing as Co','A carbon ion'],'CO is two symbols, C and O: carbon monoxide. Co is one element, cobalt.','CO = 탄소·산소 화합물(일산화 탄소), Co = 원소 코발트.','CO'),
+Q(1,'How many atoms are there in total in 4NH_3?','4NH₃에 들어 있는 원자는 모두 몇 개인가?',['16','12','7','4'],'4 × (1 + 3) = 16.','4 × (1 + 3) = 16.','4NH_3'),
+Q(1,'How many hydrogen atoms are in 2CH_4?','2CH₄에 들어 있는 수소 원자 수는?',['8','4','6','2'],'2 × 4 = 8.','2 × 4 = 8.','2CH_4'),
+Q(1,'H_2O and H_2O_2 have the same kinds of atoms. Which is true?','H₂O와 H₂O₂에 대해 옳은 것은?',['They are different substances with different properties','They are the same substance','They are both elements','H_2O_2 is a mixture of water and oxygen'],'Same kinds of atoms but a different number: water vs hydrogen peroxide (a disinfectant).','원자 수·비율이 달라 성질이 다른 물질.'),
+Q(1,'Which of these is an element?','다음 중 원소는?',['O_3 (ozone)','NH_3 (ammonia)','NO_2 (nitrogen dioxide)','CH_4 (methane)'],'O_3 has 3 atoms but only one kind (O).','O₃은 원자 3개지만 한 종류(O).'),
+Q(1,'Glucose has 6 C, 12 H and 6 O atoms. Which formula is right?','탄소 6, 수소 12, 산소 6개로 된 포도당의 화학식은?',['C_6H_12O_6','C_12H_6O_6','6C12H6O','C_6H_6O_12'],'Each subscript follows its own element.','아래 첨자는 각 원소 바로 뒤에.'),
+Q(1,'2H_2O → 2H_2 + O_2. What happens to the atoms?','2H₂O → 2H₂ + O₂ 에서 원자는?',['They are only rearranged','New atoms are created','Some atoms are destroyed','They turn into new elements'],'Before: H 4, O 2. After: H 4, O 2. Atoms are only rearranged.','반응 전후 H 4, O 2 그대로 → 배열만 바뀜.'),
+/* ---------- 4-2 Inside the Atom ---------- */
+Q(2,'Which part of the atom moves quickly around the centre?','원자핵 주위를 빠르게 움직이는 것은?',['Electron','Proton','Neutron','The nucleus'],'Light electrons move fast around the nucleus.','가벼운 전자가 원자핵 주위를 빠르게 움직인다.'),
+Q(2,'An atom has a nucleus charge of +6. How many electrons does it have?','원자핵의 전하량이 +6인 원자의 전자 수는?',['6','3','12','0'],'Neutral atom: 6 protons = 6 electrons.','중성 원자: 양성자 6 = 전자 6.'),
+Q(2,'Element X has atomic number 11. What is X?','원자 번호가 11인 원소 X는?',['Sodium (Na)','Neon (Ne)','Magnesium (Mg)','Potassium (K)'],'Atomic number = number of protons = 11 → Na.','원자 번호 = 양성자 수 = 11 → Na.'),
+Q(2,'Which gas fills party balloons safely because it hardly reacts?','거의 반응하지 않아 풍선에 안전하게 쓰는 기체는?',['Helium','Hydrogen','Oxygen','Nitrogen'],'He is in group 18 and hardly reacts. Hydrogen is light but can explode.','He는 18족, 거의 반응하지 않음. 수소는 폭발 위험.'),
+Q(2,'Which pair of elements is in the same group?','같은 족에 속하는 원소끼리 짝지은 것은?',['Na and K','Li and Be','Mg and Al','O and Ne'],'Na and K are both in group 1 (same column).','Na와 K는 모두 1족(세로줄).'),
+Q(2,'Which property do Li, Na and K share?','리튬·나트륨·칼륨의 공통 성질은?',['Soft enough to cut with a knife','Do not react with anything','Glow when electricity flows','Very hard, used for buildings'],'Group 1 metals are soft enough to cut with a knife.','1족 금속은 칼로 자를 수 있을 만큼 무르다.'),
+Q(2,'An atom has 9 protons and 10 neutrons. Which is correct?','양성자 9개, 중성자 10개인 원자에 대해 옳은 것은?',['It is fluorine (F)','Atomic number is 19','It has 10 electrons','Its nucleus is +19'],'Atomic number 9 → fluorine, 9 electrons. Neutrons are not added.','원자 번호 9 → 플루오린, 전자 9개. 중성자는 더하지 않음.'),
+Q(2,'An atom of element X loses one electron. What is true now?','원소 X의 원자가 전자 1개를 잃었다. 옳은 것은?',['It is still X but no longer neutral','It turns into a different element','Its atomic number goes down by one','One of its protons disappears'],'The number of protons is unchanged → same element, now with a (+) charge.','양성자 수 그대로 → 같은 원소, (+)전하를 띰.'),
+Q(2,'What is the charge of a neutron?','중성자의 전하는?',['0 (no charge)','+1','−1','+2'],'N = Neutral. Protons are +1, electrons −1.','중성자는 전하가 없다.'),
+Q(2,'Which particles make up the nucleus?','원자핵을 이루는 입자는?',['Protons and neutrons','Protons and electrons','Neutrons and electrons','Only electrons'],'The nucleus is the tiny, heavy centre made of protons and neutrons.','원자핵 = 양성자 + 중성자.'),
+Q(2,'Why is an atom electrically neutral?','원자가 전기적으로 중성인 까닭은?',['Number of protons = number of electrons','Neutrons cancel the + and − charges','Electrons have no charge','The nucleus has no charge'],'Neutrons have no charge and cancel nothing. (+) protons = (−) electrons.','중성자는 아무것도 상쇄하지 않음. 양성자 수 = 전자 수.'),
+Q(2,'What decides the kind of element?','원소의 종류를 결정하는 것은?',['The number of protons','The number of neutrons','The number of electrons','The size of the atom'],'The number of protons (atomic number) decides the element.','양성자 수(원자 번호)가 원소의 종류를 결정.'),
+Q(2,'A lithium atom has 3 protons and 4 neutrons. How many electrons?','양성자 3개, 중성자 4개인 리튬 원자의 전자 수는?',['3','4','7','1'],'Electrons = protons in a neutral atom. Don’t add the neutrons.','전자 수 = 양성자 수. 중성자를 더하지 않기.'),
+Q(2,'I am a neutral atom with 17 electrons. Who am I?','전자가 17개인 중성 원자는?',['Cl','Ar','S','K'],'17 electrons = 17 protons = atomic number 17 → chlorine.','전자 17 = 양성자 17 → 염소(Cl).'),
+Q(2,'My nucleus has a charge of +10. Who am I?','원자핵의 전하량이 +10인 원자는?',['Ne','Na','F','O'],'+10 → 10 protons → neon.','+10 → 양성자 10개 → 네온.'),
+Q(2,'Where is Mg on the periodic table?','마그네슘(Mg)의 주기와 족은?',['Period 3, group 2','Period 2, group 3','Period 3, group 12','Period 2, group 12'],'Mg (12) is in the 3rd row and 2nd column.','Mg: 3주기 2족.'),
+Q(2,'Which element is in period 3, group 17?','3주기 17족 원소는?',['Cl','F','S','Ar'],'Row 3, column 17 → chlorine.','3주기 17족 → 염소.'),
+Q(2,'What is a horizontal row of the periodic table called?','주기율표의 가로줄을 무엇이라고 하는가?',['A period','A group','A family','A block'],'Row = period (주기). Column = group (족).','가로줄 = 주기, 세로줄 = 족.'),
+Q(2,'Why is argon (Ar) used in welding?','아르곤을 용접에 쓰는 까닭은?',['It hardly reacts, so it keeps oxygen away from hot metal','It reacts easily with hot metal','It burns with a hot flame','It is a strong metal'],'Group 18 gases hardly react.','18족 기체는 거의 반응하지 않음.'),
+Q(2,'Why don’t we fill party balloons with hydrogen?','풍선을 수소로 채우지 않는 까닭은?',['Hydrogen burns or explodes easily with oxygen','Hydrogen is too heavy','Hydrogen is a liquid','Hydrogen is in group 18'],'H_2 burns easily; helium hardly reacts.','수소는 산소와 쉽게 타거나 폭발.'),
+Q(2,'Compared with a proton, an electron is…','양성자와 비교한 전자의 질량은?',['Much lighter (about 1/1836)','Much heavier','About the same mass','Twice as heavy'],'Almost all the mass is in the nucleus.','전자는 양성자의 약 1/1836.'),
+Q(2,'What is most of an atom made of?','원자의 대부분을 차지하는 것은?',['Empty space','Neutrons','Protons','Electrons packed together'],'Rutherford’s gold foil experiment: the nucleus is tiny; most of the atom is empty.','러더퍼드 금박 실험: 원자핵은 매우 작고 대부분 빈 공간.'),
+Q(2,'Group 1 metals react with water to make which gas?','1족 금속이 물과 반응하면 생기는 기체는?',['Hydrogen','Oxygen','Chlorine','Helium'],'Li, Na, K + water → hydrogen gas.','1족 + 물 → 수소 기체.'),
+/* ---------- 4-3 Atoms & Molecules ---------- */
+Q(3,'Which substance is made of molecules?','분자로 이루어진 물질은?',['Nitrogen (N_2)','Neon (Ne)','Aluminum (Al)','Gold (Au)'],'N_2 is two nitrogen atoms joined. Group 18 gases and metals are made of atoms.','N₂는 질소 원자 2개가 결합한 분자.'),
+Q(3,'How many atoms are in one ammonia (NH_3) molecule?','암모니아 분자 1개의 원자 수는?',['4','3','1','2'],'N 1 + H 3 = 4.','N 1 + H 3 = 4.','NH_3'),
+Q(3,'What is the smallest particle that still has the properties of water?','물의 성질을 나타내는 가장 작은 입자는?',['A water molecule','A hydrogen atom','An oxygen atom','A water droplet'],'Split into atoms, the properties of water are gone. A droplet is many molecules.','원자로 쪼개면 물의 성질이 사라짐.'),
+Q(3,'O_2 and O_3 are made of the same kind of atom. Which is true?','O₂와 O₃에 대해 옳은 것은?',['They have different properties','They are the same substance','O_3 is a compound of oxygen','Both of them are compounds'],'Different numbers of atoms → different substances (we breathe O_2; O_3 blocks UV).','원자 수가 달라 성질이 다른 물질.'),
+Q(3,'A box holds 3 CO_2 and 2 H_2O molecules. How many O atoms in total?','CO₂ 3개와 H₂O 2개 속 산소 원자는 모두 몇 개?',['8','5','6','10'],'3 × 2 + 2 × 1 = 8.','3 × 2 + 2 × 1 = 8.','3CO_2 + 2H_2O'),
+Q(3,'Hydrogen molecules (H_2) are split into separate H atoms. Which is true?','수소 분자를 원자로 나누면?',['They lose hydrogen gas’s properties','They still show all of hydrogen gas’s properties','They join to become helium','The total number of atoms goes down'],'Splitting a molecule into atoms removes the substance’s properties.','분자를 원자로 나누면 그 물질의 성질이 사라짐.'),
+Q(3,'Which substance is made of separate atoms, not molecules?','분자가 아니라 원자로 이루어진 물질은?',['Helium (He)','Nitrogen (N_2)','Water (H_2O)','Carbon dioxide (CO_2)'],'In helium, each atom shows the properties of helium.','헬륨은 원자 하나하나가 성질을 나타냄.'),
+Q(3,'Iron atoms are joined to many other iron atoms. What is iron made of?','철은 무엇으로 이루어진 물질인가?',['Iron atoms (formula Fe)','One giant iron molecule','Fe_2 molecules','Iron ions only'],'The particle that shows iron’s properties is the iron atom.','철의 성질을 나타내는 입자 = 철 원자, 화학식 Fe.'),
+Q(3,'Which is a molecule made of only ONE kind of atom?','한 종류의 원자로 된 분자는?',['O_3','H_2O','CO_2','CH_4'],'O_3 is an element made of molecules.','O₃는 분자로 된 원소.'),
+Q(3,'How many atoms are in one ethanol molecule, C_2H_5OH?','에탄올(C₂H₅OH) 분자 1개의 원자 수는?',['9','8','3','6'],'C 2 + H 6 + O 1 = 9. Don’t forget the H in OH.','C 2 + H 6 + O 1 = 9.','C_2H_5OH'),
+Q(3,'How many KINDS of atoms are in ethanol, C_2H_5OH?','에탄올을 이루는 원자의 종류 수는?',['3','2','9','4'],'C, H and O.','C, H, O 세 종류.','C_2H_5OH'),
+Q(3,'Which is the poisonous gas from incomplete burning?','불완전 연소로 생기는 독성 기체는?',['CO','CO_2','O_3','N_2'],'CO and CO_2 differ by one O atom but are totally different substances.','CO와 CO₂는 O 하나 차이지만 전혀 다른 물질.'),
+Q(3,'Which is used in fire extinguishers and fizzy drinks?','소화기와 탄산음료에 쓰이는 것은?',['CO_2','CO','O_3','H_2'],'Carbon dioxide (CO_2).','이산화 탄소(CO₂).'),
+Q(3,'Which molecule blocks UV light high in the sky?','하늘 높은 곳에서 자외선을 막는 분자는?',['O_3','O_2','N_2','CO_2'],'Ozone (O_3). We breathe O_2.','오존(O₃). 우리가 호흡하는 것은 O₂.'),
+Q(3,'How many molecules and O atoms are in 3O_2?','3O₂의 분자 수와 산소 원자 수는?',['3 molecules, 6 O atoms','6 molecules, 3 O atoms','3 molecules, 3 O atoms','2 molecules, 6 O atoms'],'Coefficient 3 = 3 molecules; 3 × 2 = 6 atoms.','계수 3 = 분자 3개, 3 × 2 = 원자 6개.','3O_2'),
+Q(3,'How many atoms are there in total in 2NH_3?','2NH₃의 전체 원자 수는?',['8','6','5','4'],'2 × (1 + 3) = 8.','2 × (1 + 3) = 8.','2NH_3'),
+Q(3,'How many atoms are there in total in 4CO_2?','4CO₂의 전체 원자 수는?',['12','8','7','4'],'4 × (1 + 2) = 12.','4 × (1 + 2) = 12.','4CO_2'),
+Q(3,'Water contains hydrogen atoms. Does water go “pop” near a flame like hydrogen gas?','물에 수소 원자가 있으니 수소처럼 ‘펑’ 하고 탈까?',['No, a molecule has its own properties','Yes, always','Only when it is hot','Only in sunlight'],'The H atoms in water do not show the properties of H_2 gas.','물 분자 속 H는 수소 기체의 성질이 없음.'),
+Q(3,'Which statement is TRUE?','옳은 것은?',['Some elements are made of molecules, like O_2','All elements are made of single atoms','All compounds are made of molecules','NaCl is made of molecules'],'H_2, O_2, N_2, O_3 are elements made of molecules; NaCl is made of ions.','H₂·O₂·N₂·O₃는 분자로 된 원소, NaCl은 이온으로 된 화합물.'),
+/* ---------- 4-4 Ions ---------- */
+Q(4,'A magnesium atom loses 2 electrons. Which ion forms?','마그네슘 원자가 전자 2개를 잃으면?',['Mg^{2+}','Mg^{2−}','Mg^{+2}','Mg_2'],'Losing electrons → positive ion; number first, then sign.','전자를 잃으면 양이온, 숫자 먼저 → Mg²⁺.'),
+Q(4,'A sodium atom has 11 protons. How many electrons does Na^{+} have?','Na⁺의 전자 수는?',['10','11','12','1'],'11 − 1 = 10.','11개 중 1개를 잃어 10개.','Na^{+}'),
+Q(4,'What is the correct name of S^{2−}?','S²⁻의 이름은?',['Sulfide ion (황화 이온)','Sulfur ion (황 이온)','Sulfate ion (황산 이온)','Sulfuric ion (황산화 이온)'],'Negative ion: root + -ide. Sulfate is SO_4^{2−}.','음이온: 원소 이름 + 화 이온. 황산 이온은 SO₄²⁻.','S^{2−}'),
+Q(4,'Which solution does NOT conduct electricity?','전기가 통하지 않는 수용액은?',['Sugar water','Salt water','Sports (ion) drink','Calcium chloride solution'],'Sugar is made of molecules — no charged particles.','설탕은 분자로 이루어져 전하를 띤 입자가 없음.'),
+Q(4,'A drop of copper(II) nitrate (blue Cu^{2+}) is on wet filter paper with power on. What happens?','질산 구리(II) 수용액 실험 결과는?',['Blue moves toward the (−) electrode','Blue moves toward the (+) electrode','Blue spreads evenly both ways','Blue does not move at all'],'Cu^{2+} is positive → pulled to (−). Opposite charges attract.','Cu²⁺는 양이온 → (−)극으로 이동.'),
+Q(4,'An unknown purple spot moves toward the (+) electrode. Which is true?','(+)극으로 이동하는 보라색 이온에 대해 옳은 것은?',['It has more electrons than protons','It is a positive ion that lost electrons','It has no charge, like a molecule','It is pulled by (+) because they are alike'],'Pulled to (+) → negative ion → electrons > protons.','(+)극으로 끌림 → 음이온 → 전자 수 > 양성자 수.'),
+Q(4,'Fluorine (9 protons) gains 1 electron. How many electrons does F^{−} have?','F⁻의 전자 수는?',['10','9','8','1'],'9 + 1 = 10.','9 + 1 = 10.','F^{−}'),
+Q(4,'A sulfur atom gains 2 electrons. Which ion forms?','황 원자가 전자 2개를 얻으면?',['S^{2−}','S^{2+}','S^{−2}','S_2'],'Gaining electrons → negative ion. Write the number before the sign.','전자를 얻으면 음이온, 숫자 먼저 → S²⁻.'),
+Q(4,'Which ion formula is written correctly?','이온식을 바르게 쓴 것은?',['Ca^{2+}','Ca^{+2}','Cl^{1−}','Li^{1+}'],'Number first, then sign; the 1 is not written (Cl^{−}, Li^{+}).','숫자 → 부호, 1은 생략.'),
+Q(4,'What is the name of Cl^{−}?','Cl⁻의 이름은?',['Chloride ion (염화 이온)','Chlorine ion (염소 이온)','Chlorate ion','Chloric ion'],'chlorine → chloride. A very common mistake is “chlorine ion”.','chlorine → chloride, 염소 → 염화.','Cl^{−}'),
+Q(4,'What is the name of O^{2−}?','O²⁻의 이름은?',['Oxide ion (산화 이온)','Oxygen ion (산소 이온)','Ozone ion','Hydroxide ion'],'oxygen → oxide. Hydroxide is OH^{−}.','oxygen → oxide, 산소 → 산화.','O^{2−}'),
+Q(4,'Which is a polyatomic ion?','다원자 이온은?',['SO_4^{2−}','Na^{+}','Cl^{−}','O^{2−}'],'SO_4^{2−} (sulfate) is made of several atoms.','SO₄²⁻(황산 이온)는 여러 원자로 된 이온.'),
+Q(4,'What is the name of NO_3^{−}?','NO₃⁻의 이름은?',['Nitrate ion (질산 이온)','Nitride ion','Nitrogen ion','Nitric ion'],'Polyatomic ion names are learned as a set: sulfate, carbonate, nitrate, hydroxide.','다원자 이온: 황산·탄산·질산·수산화 이온.','NO_3^{−}'),
+Q(4,'What is the English name of CaCl_2?','CaCl₂의 영어 이름은?',['Calcium chloride','Chloride calcium','Calcium chlorine','Chlorine calcium'],'English: positive ion first, then the -ide name.','영어는 양이온 먼저.','CaCl_2'),
+Q(4,'What is the Korean name of CaO?','CaO의 한국어 이름은?',['산화 칼슘','칼슘 산화','산소 칼슘','칼슘 산소'],'Korean puts the negative ion first: 산화 칼슘 (calcium oxide).','한국어는 음이온 먼저 → 산화 칼슘.','CaO'),
+Q(4,'When an atom becomes a positive ion, what changes?','원자가 양이온이 될 때 변하는 것은?',['Only the number of electrons','The number of protons','The number of neutrons','Both protons and electrons'],'Protons never change when an ion forms.','이온이 될 때 양성자 수는 변하지 않는다.'),
+Q(4,'Does a dry salt crystal conduct electricity?','마른 소금 결정은 전기가 통할까?',['No, the ions cannot move in a solid','Yes, just like salt water','Only when it is cold','Yes, even better than salt water'],'Ions can only carry charge when dissolved (or melted).','고체에서는 이온이 움직이지 못함.'),
+Q(4,'In salt water, where do Na^{+} ions move?','소금물에서 Na⁺은 어느 극으로 이동할까?',['To the (−) electrode','To the (+) electrode','They do not move','To both electrodes equally'],'Opposite charges attract: Na^{+} → (−), Cl^{−} → (+).','반대 전하끼리 끌림: Na⁺ → (−)극.'),
+Q(4,'Why does distilled water not conduct electricity?','증류수에 전기가 통하지 않는 까닭은?',['It has only water molecules and no ions','It has too many ions','Its ions are too heavy','It contains sugar'],'No ions → nothing to carry the charge.','이온이 없어 전하를 옮길 입자가 없음.'),
+Q(4,'What is the name of KNO_3?','KNO₃의 이름은?',['Potassium nitrate (질산 칼륨)','Nitrate potassium (칼륨 질산)','Potassium nitride','Potassium nitrogen'],'K^{+} + NO_3^{−} → potassium nitrate / 질산 칼륨.','K⁺ + NO₃⁻ → 질산 칼륨.','KNO_3'),
+/* ---------- 4-5 Ionic Compounds ---------- */
+Q(5,'Ca^{2+} and S^{2−} form an ionic compound. What is its formula?','Ca²⁺와 S²⁻로 된 화합물의 화학식은?',['CaS','Ca_2S_2','CaS_2','Ca_2S'],'(+2) + (−2) = 0 → 1 : 1 → CaS.','(+2) + (−2) = 0 → 1 : 1 → CaS.'),
+Q(5,'How many ions are in one unit of Li_2O?','Li₂O 한 단위의 이온 수는?',['3','2','1','4'],'2 Li^{+} + 1 O^{2−} = 3 ions.','Li⁺ 2개 + O²⁻ 1개 = 3개.','Li_2O'),
+Q(5,'Which name of MgS is correct?','MgS의 이름으로 옳은 것은?',['magnesium sulfide / 황화 마그네슘','magnesium sulfide / 마그네슘 황화','sulfide magnesium / 황화 마그네슘','magnesium sulfur / 황화 마그네슘'],'English: positive first. Korean: negative first.','영어는 양이온 먼저, 한국어는 음이온 먼저.','MgS'),
+Q(5,'Mg^{2+} and OH^{−} form magnesium hydroxide. Which formula is correct?','수산화 마그네슘의 화학식은?',['Mg(OH)_2','MgOH_2','(MgOH)_2','MgOH'],'Two OH^{−} are needed, so keep OH together in brackets.','OH⁻ 2개 → 덩어리째 괄호.'),
+Q(5,'Which formula is WRONG because the charges do not cancel?','전하의 합이 0이 아닌 잘못된 화학식은?',['Ag_2NO_3','Na_2SO_4','CaCO_3','MgF_2'],'2 Ag^{+} (+2) + 1 NO_3^{−} (−1) = +1. Correct: AgNO_3.','Ag⁺ 2개 + NO₃⁻ 1개 = +1 ≠ 0.'),
+Q(5,'A sample of CaCl_2 contains 6 Cl^{−} ions. How many Ca^{2+} ions are in it?','CaCl₂에 Cl⁻가 6개 있을 때 Ca²⁺의 수는?',['3','6','12','2'],'Ca^{2+} : Cl^{−} = 1 : 2 → 3.','1 : 2 이므로 3개.','CaCl_2'),
+Q(5,'Ca^{2+} and F^{−} form a compound. What is its formula?','Ca²⁺와 F⁻로 된 화합물은?',['CaF_2','Ca_2F','CaF','Ca_2F_2'],'1 Ca^{2+} (+2) + 2 F^{−} (−2) = 0.','Ca²⁺ 1개 + F⁻ 2개 = 0.'),
+Q(5,'Li^{+} and S^{2−} form a compound. What is its formula?','Li⁺와 S²⁻로 된 화합물은?',['Li_2S','LiS_2','LiS','Li_2S_2'],'2 Li^{+} (+2) + 1 S^{2−} (−2) = 0.','Li⁺ 2개 + S²⁻ 1개 = 0.'),
+Q(5,'Na^{+} and O^{2−} form a compound. What is its formula?','Na⁺와 O²⁻로 된 화합물은?',['Na_2O','NaO_2','NaO','Na_2O_2'],'2 Na^{+} + 1 O^{2−} = 0.','Na⁺ 2개 + O²⁻ 1개.'),
+Q(5,'Mg^{2+} and NO_3^{−} form a compound. What is its formula?','Mg²⁺와 NO₃⁻로 된 화합물은?',['Mg(NO_3)_2','MgNO_3','MgNO_32','Mg_2NO_3'],'Two NO_3^{−} are needed, so the polyatomic ion goes in brackets.','NO₃⁻ 2개 → 괄호로 묶기.'),
+Q(5,'Ag^{+} and Cl^{−} form a compound. What is its formula?','Ag⁺와 Cl⁻로 된 화합물은?',['AgCl','Ag_2Cl','AgCl_2','Ag_2Cl_2'],'(+1) + (−1) = 0 → 1 : 1.','1 : 1 → AgCl.'),
+Q(5,'Ba^{2+} and CO_3^{2−} form a compound. What is its formula?','Ba²⁺와 CO₃²⁻로 된 화합물은?',['BaCO_3','Ba_2CO_3','Ba(CO_3)_2','BaCO'],'(+2) + (−2) = 0 → 1 : 1. Keep CO_3 whole.','1 : 1, CO₃는 한 덩어리.'),
+Q(5,'Na^{+} and CO_3^{2−} form a compound. What is its formula?','Na⁺와 CO₃²⁻로 된 화합물은?',['Na_2CO_3','NaCO_3','Na_2CO','Na(CO_3)_2'],'2 Na^{+} + 1 CO_3^{2−} = 0. The 3 in CO_3 is part of the ion.','CO₃의 3은 이온의 일부 — 빼면 안 됨.'),
+Q(5,'How many ions are in one unit of K_2SO_4?','K₂SO₄ 한 단위의 이온 수는?',['3','2','7','6'],'2 K^{+} + 1 SO_4^{2−} = 3 ions.','K⁺ 2개 + SO₄²⁻ 1개 = 3개.','K_2SO_4'),
+Q(5,'Which ions make up Ca(NO_3)_2?','Ca(NO₃)₂를 이루는 이온은?',['1 Ca^{2+} + 2 NO_3^{−}','2 Ca^{2+} + 1 NO_3^{−}','1 Ca^{2+} + 1 NO_3^{−}','1 Ca^{2+} + 3 NO^{−}'],'The 2 after the bracket means two nitrate ions.','괄호 뒤 2 = 질산 이온 2개.','Ca(NO_3)_2'),
+Q(5,'What is the English name of K_2S?','K₂S의 영어 이름은?',['Potassium sulfide','Sulfide potassium','Potassium sulfate','Potassium sulfur'],'Positive ion first, then root + -ide.','양이온 먼저, 음이온은 -ide.','K_2S'),
+Q(5,'What is the Korean name of MgF_2?','MgF₂의 한국어 이름은?',['플루오린화 마그네슘','마그네슘 플루오린화','플루오린 마그네슘','마그네슘 플루오린'],'Korean puts the negative ion first.','한국어는 음이온 먼저.','MgF_2'),
+Q(5,'What is the name of Na_2SO_4?','Na₂SO₄의 이름은?',['Sodium sulfate (황산 나트륨)','Sodium sulfide (황화 나트륨)','Sulfate sodium (나트륨 황산)','Sodium sulfur (황 나트륨)'],'SO_4^{2−} is sulfate; S^{2−} is sulfide.','SO₄²⁻ = 황산, S²⁻ = 황화.','Na_2SO_4'),
+Q(5,'What is the formula of calcium carbonate (탄산 칼슘)?','탄산 칼슘의 화학식은?',['CaCO_3','Ca_2CO_3','Ca(CO_3)_2','CaCO'],'Ca^{2+} + CO_3^{2−} → 1 : 1.','Ca²⁺ + CO₃²⁻ → 1 : 1.'),
+Q(5,'What is the formula of potassium oxide (산화 칼륨)?','산화 칼륨의 화학식은?',['K_2O','KO','KO_2','K_2O_2'],'2 K^{+} + 1 O^{2−} = 0.','K⁺ 2개 + O²⁻ 1개.'),
+Q(5,'What is the formula of calcium hydroxide (수산화 칼슘)?','수산화 칼슘의 화학식은?',['Ca(OH)_2','CaOH','CaOH_2','Ca_2OH'],'1 Ca^{2+} + 2 OH^{−}, with OH in brackets.','Ca²⁺ 1개 + OH⁻ 2개, 괄호 사용.'),
+Q(5,'MgO has a total charge of 0. What does that mean?','MgO의 전하 합이 0인 까닭은?',['The +2 and −2 cancel; the ions are still inside','There are no ions inside at all','Mg and O lost all their electrons','MgO is made of molecules'],'Mg^{2+} and O^{2−} are still there; their charges cancel.','이온은 여전히 존재, 전하가 상쇄된 것.','MgO'),
+/* ---------- Ⅰ-1 Physical vs Chemical Changes ---------- */
+Q(6,'Which is a chemical change?','화학 변화에 해당하는 것은?',['Iron rusting','Ice melting','Salt being ground','Ink spreading in water'],'Rusting makes a new reddish substance. Ink spreading is just mixing.','철이 녹슬면 새로운 물질이 생긴다.'),
+Q(6,'In a physical change, what stays the same?','물리 변화에서 변하지 않는 것은?',['The kind of substance','The shape of the object','The state (solid, liquid, gas)','The size of the pieces'],'Shape, size and state can change; the substance and its properties stay.','물질의 종류(고유한 성질)는 변하지 않음.'),
+Q(6,'Dilute HCl is dropped on the ash of a burned Mg ribbon. What happens?','연소 후 남은 재에 묽은 염산을 떨어뜨리면?',['No gas bubbles form','Many gas bubbles form','It turns shiny again','It changes into silver'],'The ash is magnesium oxide, a new substance that gives no gas with HCl.','재는 산화 마그네슘(새 물질) — 기체가 생기지 않음.'),
+Q(6,'In the H_2O_2 activity, a glowing splint flares up. Which gas formed?','향의 불씨가 다시 타오르게 한 기체는?',['Oxygen','Hydrogen','Carbon dioxide','Nitrogen'],'H_2O_2 → water + oxygen; oxygen helps burning. Hydrogen burns with a “pop”.','과산화 수소 → 물 + 산소, 산소는 연소를 도움.'),
+Q(6,'Which observation shows that NaCl and AgNO_3 solutions had a chemical change?','염화 나트륨과 질산 은 수용액의 화학 변화 증거는?',['A new white solid appears','The liquids mix together evenly','The total volume increases','The drops spread out on the plate'],'A white precipitate (silver chloride) that was not there before.','흰색 앙금(염화 은)이 새로 생김.'),
+Q(6,'In which change are atoms rearranged into new molecules?','원자의 배열이 달라져 새로운 분자가 생기는 변화는?',['Hydrogen peroxide decomposing','Sugar dissolving in warm water','Water boiling in a kettle','An ice cube melting'],'H_2O_2 → H_2O + O_2. The others keep the same molecules.','H₂O₂ → H₂O + O₂: 원자 배열이 바뀜.'),
+Q(6,'Which is a physical change?','물리 변화에 해당하는 것은?',['Sugar dissolving in water','Paper burning','A peeled apple turning brown','An egg frying'],'Sugar molecules spread out but stay sugar; you can get it back by evaporating.','설탕 분자는 그대로 퍼짐 → 물리 변화.'),
+Q(6,'Kimchi turning sour is a…','김치가 시어지는 것은?',['Chemical change, new substances form','Physical change, only the shape changes','Physical change, only the state changes','No change at all'],'New substances (acids) form, so the taste changes.','새로운 물질이 생겨 맛이 변함.'),
+Q(6,'Bending a magnesium ribbon is a…','마그네슘 리본을 구부리는 것은?',['Physical change, its colour, luster and reaction with HCl stay','Chemical change, its shape changes','Chemical change, it gives off light','Physical change, it turns into white powder'],'Bent Mg is still shiny and still fizzes with HCl.','구부려도 색·광택·염산과의 반응 그대로.'),
+Q(6,'What are the bubbles in boiling water?','물이 끓을 때 생기는 기포는?',['Water vapour, no new substance','Hydrogen gas','Oxygen gas','Carbon dioxide'],'Boiling bubbles are still H_2O, so boiling is physical.','끓음의 기포는 수증기 → 물리 변화.'),
+Q(6,'Baking soda + vinegar fizz. What is the evidence and type of change?','베이킹 소다 + 식초가 부글거릴 때 증거와 변화는?',['Gas, chemical change','Precipitate, chemical change','Colour change, physical change','No evidence, physical change'],'A new gas forms.','새로운 기체 발생 → 화학 변화.'),
+Q(6,'White scale forms inside an old kettle. What is the evidence?','전기 주전자 속 흰색 물질의 증거는?',['Precipitate, chemical change','Gas, chemical change','Smell change, physical change','No evidence, physical change'],'A new solid (precipitate) formed.','앙금 생성 → 화학 변화.'),
+Q(6,'A silver spoon turns black in air. What is the evidence?','은 숟가락이 검게 변할 때 증거는?',['Colour change, chemical change','Gas, chemical change','Precipitate, physical change','No evidence, physical change'],'A new black substance forms on the surface.','색 변화 → 화학 변화.'),
+Q(6,'Making bread: yeast makes CO_2 and the dough rises. Which type of change?','빵 만들기: 효모가 CO₂를 만들어 반죽이 부푼다.',['Chemical, a new gas is made','Physical, only the shape changes','Physical, only mixing','Physical, only the state changes'],'Yeast makes new CO_2 gas.','효모가 새로운 기체(CO₂)를 만듦.'),
+Q(6,'Making bread: cutting the dough into pieces. Which type of change?','빵 만들기: 반죽을 자르는 것은?',['Physical, only size and shape change','Chemical, a new substance forms','Chemical, the colour changes','Chemical, gas is given off'],'Only size and shape change.','크기·모양만 변함.'),
+Q(6,'Making bread: baking until the crust turns brown. Which type of change?','빵 만들기: 겉이 갈색이 될 때까지 굽기는?',['Chemical, brown crust and new smell','Physical, only the state changes','Physical, only the shape changes','Physical, water evaporates only'],'New substances give a brown colour and a new smell (Maillard reaction).','갈색·새 냄새 → 새 물질(마이야르 반응).'),
+Q(6,'What happens when a candle burns?','양초가 탈 때 일어나는 변화는?',['Both: wax melts (physical) and burns (chemical)','Only a physical change','Only a chemical change','No change, the wax just disappears'],'Melting is physical; the burning wax vapour makes CO_2 and water (chemical).','녹음 = 물리, 연소 = 새 물질 생성(화학).'),
+Q(6,'In a physical change, what happens to the molecules?','물리 변화에서 분자는?',['They stay the same; only spacing or arrangement changes','Atoms are rearranged into new molecules','The molecules disappear','New elements form'],'In a chemical change, atoms are rearranged into new molecules.','화학 변화에서만 원자 배열이 바뀜.'),
+Q(6,'Ink spreads in water and the colour looks different. What type of change?','잉크가 물에 퍼져 색이 달라 보이는 것은?',['Physical, it is just mixing','Chemical, the colour changed','Chemical, a gas formed','Chemical, a precipitate formed'],'A colour change from mixing is not a new substance.','섞여서 색이 달라 보이는 것은 물리 변화.'),
+Q(6,'In Activity 2, what is the white solid that forms?','염화 나트륨 + 질산 은에서 생기는 흰색 앙금은?',['Silver chloride (AgCl)','Sodium chloride (NaCl)','Silver nitrate (AgNO_3)','Sodium nitrate (NaNO_3)'],'Ag^{+} + Cl^{−} → AgCl, a white precipitate.','Ag⁺ + Cl⁻ → AgCl(염화 은).'),
+Q(6,'What does hydrogen peroxide (H_2O_2) break down into?','과산화 수소가 분해되면?',['Water and oxygen','Water and hydrogen','Hydrogen and oxygen only','Carbon dioxide and water'],'2H_2O_2 → 2H_2O + O_2.','과산화 수소 → 물 + 산소.','H_2O_2'),
+/* ---------- Ⅰ-2 Chemical Equations ---------- */
+Q(7,'During a chemical reaction, which does NOT change?','화학 반응에서 변하지 않는 것은?',['Number of each kind of atom','Arrangement of atoms','Kinds of molecules','Properties of the substances'],'The kinds and numbers of atoms stay the same; they are only rearranged.','화학 반응 전후 원자의 종류와 개수는 변하지 않는다.'),
+Q(7,'In CH_4 + 2O_2 → CO_2 + 2H_2O, which are the products?','CH₄ + 2O₂ → CO₂ + 2H₂O 에서 생성물은?',['CO_2 and H_2O','CH_4 and O_2','CH_4 and H_2O','O_2 and CO_2'],'Products are on the right of the arrow.','화살표 오른쪽 = 생성물.','CH_4 + 2O_2 → CO_2 + 2H_2O'),
+Q(7,'__CO + __O_2 → __CO_2. Which coefficients balance it?','계수를 바르게 맞춘 것은?',['2, 1, 2','1, 1, 1','1, 2, 1','2, 2, 2'],'C: 2 | 2, O: 4 | 4.','C 2|2, O 4|4 → 2, 1, 2.','CO + O_2 → CO_2'),
+Q(7,'Why must we NOT change subscripts to balance an equation?','아래 첨자를 바꾸면 안 되는 까닭은?',['It would make a different substance','Subscripts are always 1','Atoms would be destroyed','It makes the equation too long'],'H_2O → H_2O_2 turns water into hydrogen peroxide. Change only coefficients.','아래 첨자를 바꾸면 다른 물질이 된다.'),
+Q(7,'N_2 + 3H_2 → 2NH_3. If 12 H_2 molecules react completely, how many NH_3 molecules form?','H₂ 12개가 모두 반응하면 생기는 NH₃ 분자 수는?',['8','6','24','4'],'H_2 : NH_3 = 3 : 2 → 12 : 8.','H₂ : NH₃ = 3 : 2 → 12 : 8.','N_2 + 3H_2 → 2NH_3'),
+Q(7,'C_3H_8 + 5O_2 → 3CO_2 + 4H_2O. How many O atoms are on the product side?','생성물 쪽 산소 원자 수는?',['10','7','5','14'],'3CO_2 → 6 O, 4H_2O → 4 O, total 10.','3CO₂ → O 6, 4H₂O → O 4, 합 10.','C_3H_8 + 5O_2 → 3CO_2 + 4H_2O'),
+Q(7,'Is H_2 + Cl_2 → 2HCl balanced?','H₂ + Cl₂ → 2HCl 은 계수가 맞을까?',['Yes: H 2, Cl 2 on both sides','No: it needs 2H_2','No: there is only 1 Cl on the right','No: HCl should be HCl_2'],'Left H 2, Cl 2. Right 2HCl: H 2, Cl 2.','반응 전후 H 2, Cl 2로 같다.','H_2 + Cl_2 → 2HCl'),
+Q(7,'Which is the balanced equation for making ammonia?','암모니아 생성 반응식을 바르게 맞춘 것은?',['N_2 + 3H_2 → 2NH_3','N_2 + H_2 → NH_3','N_2 + 3H_2 → NH_3','2N_2 + 3H_2 → 2NH_3'],'N 2 | 2, H 6 | 6.','N 2|2, H 6|6.'),
+Q(7,'__CH_4 + __O_2 → __CO_2 + __H_2O. Which coefficients balance it?','메테인 연소 반응식의 계수는?',['1, 2, 1, 2','1, 1, 1, 2','2, 1, 1, 2','1, 2, 2, 1'],'C 1 | 1, H 4 | 4, O 4 | 4.','C 1, H 4, O 4로 양쪽이 같다.','CH_4 + O_2 → CO_2 + H_2O'),
+Q(7,'__Fe + __O_2 → __Fe_2O_3. Which coefficients balance it?','철이 녹스는 반응식의 계수는?',['4, 3, 2','2, 3, 1','4, 3, 4','2, 1, 1'],'Fe 4 | 4, O 6 | 6.','Fe 4|4, O 6|6.','Fe + O_2 → Fe_2O_3'),
+Q(7,'__Mg + __O_2 → __MgO. Which coefficients balance it?','마그네슘 연소 반응식의 계수는?',['2, 1, 2','1, 1, 1','1, 2, 1','2, 2, 2'],'Mg 2 | 2, O 2 | 2.','Mg 2|2, O 2|2.','Mg + O_2 → MgO'),
+Q(7,'__H_2O_2 → __H_2O + __O_2. Which coefficients balance it?','과산화 수소 분해 반응식의 계수는?',['2, 2, 1','1, 1, 1','2, 1, 1','1, 2, 1'],'H 4 | 4, O 4 | 4.','H 4|4, O 4|4.','H_2O_2 → H_2O + O_2'),
+Q(7,'__C_2H_4 + __O_2 → __CO_2 + __H_2O. Which coefficients balance it?','에틸렌 연소 반응식의 계수는?',['1, 3, 2, 2','1, 2, 2, 2','2, 3, 2, 2','1, 3, 2, 1'],'C 2 | 2, H 4 | 4, O 6 | 6.','C 2, H 4, O 6으로 양쪽이 같다.','C_2H_4 + O_2 → CO_2 + H_2O'),
+Q(7,'Carbon burns completely in oxygen to make carbon dioxide. Which equation is right?','탄소의 완전 연소 반응식은?',['C + O_2 → CO_2','C + O → CO_2','2C + O_2 → CO_2','C + 2O_2 → CO_2'],'Oxygen gas is O_2; C 1 | 1, O 2 | 2.','산소 기체는 O₂, C 1|1, O 2|2.'),
+Q(7,'Hydrogen + chlorine → hydrogen chloride. Which equation is right?','수소 + 염소 → 염화 수소의 반응식은?',['H_2 + Cl_2 → 2HCl','H + Cl → HCl','H_2 + Cl_2 → HCl','H_2 + Cl_2 → H_2Cl_2'],'Both gases are diatomic; 2HCl balances H and Cl.','두 기체 모두 이원자 분자, 2HCl로 맞춤.'),
+Q(7,'Copper + oxygen → copper(II) oxide (CuO). Which equation is right?','구리 + 산소 → 산화 구리(Ⅱ)의 반응식은?',['2Cu + O_2 → 2CuO','Cu + O_2 → CuO','Cu + O → CuO','Cu + O_2 → CuO_2'],'Cu 2 | 2, O 2 | 2. Don’t change CuO to CuO_2.','Cu 2|2, O 2|2. CuO를 CuO₂로 바꾸면 안 됨.'),
+Q(7,'In N_2 + 3H_2 → 2NH_3, the ratio 1 : 3 : 2 is the ratio of…','N₂ + 3H₂ → 2NH₃ 에서 1 : 3 : 2는 무엇의 비인가?',['Numbers of molecules (particles)','Masses in grams','Sizes of the molecules','Numbers of atoms in each molecule'],'Coefficient ratio = particle ratio, NOT mass ratio.','계수의 비 = 입자 수의 비 (질량비 아님).'),
+Q(7,'N_2 + 3H_2 → 2NH_3. How many H_2 molecules react with 5 N_2 molecules?','N₂ 분자 5개와 반응하는 H₂ 분자 수는?',['15','5','10','3'],'N_2 : H_2 = 1 : 3 → 5 : 15.','1 : 3 → 5 : 15.','N_2 + 3H_2 → 2NH_3'),
+Q(7,'N_2 + 3H_2 → 2NH_3. How many NH_3 molecules form from 5 N_2 molecules?','N₂ 분자 5개로 만들어지는 NH₃ 분자 수는?',['10','5','15','2'],'N_2 : NH_3 = 1 : 2 → 5 : 10.','1 : 2 → 5 : 10.','N_2 + 3H_2 → 2NH_3'),
+Q(7,'2H_2 + O_2 → 2H_2O has 3 molecules before and 2 after. Which is true?','반응 전 분자 3개, 반응 후 2개일 때 옳은 것은?',['Atoms are only rearranged: H 4, O 2 on both sides','Some atoms disappeared','One oxygen atom was destroyed','The kinds of atoms changed'],'The number of molecules can change; the atoms cannot.','분자 수는 변할 수 있지만 원자 수는 같다.','2H_2 + O_2 → 2H_2O'),
+Q(7,'What do the coefficients 2 : 1 : 2 in 2H_2 + O_2 → 2H_2O mean?','2H₂ + O₂ → 2H₂O 의 계수 2 : 1 : 2가 뜻하는 것은?',['2 H_2 molecules react with 1 O_2 molecule to make 2 H_2O molecules','2 g of H_2 reacts with 1 g of O_2','2 atoms react with 1 atom','The volume of water is 2 L'],'It is a particle ratio. The mass ratio is 4 : 32 : 36.','입자 수의 비. 질량비는 4 : 32 : 36.','2H_2 + O_2 → 2H_2O'),
+Q(7,'In a chemical equation, where are the reactants written?','화학 반응식에서 반응물은 어디에 쓰는가?',['On the left of the arrow','On the right of the arrow','Above the arrow','On both sides'],'Reactants → products. Use + between substances.','반응물은 화살표 왼쪽, 생성물은 오른쪽.'),
+Q(7,'Before: A–A and B–B. After: A–B and A–B. Which equation matches?','A₂와 B₂가 반응해 AB 2개가 될 때 반응식은?',['A_2 + B_2 → 2AB','A_2 + B_2 → AB','A + B → AB','2A_2 + B_2 → 2AB'],'A 2 | 2, B 2 | 2.','A 2|2, B 2|2.'),
+Q(7,'H_2 + O_2 → H_2O is not balanced. Which fix is correct?','H₂ + O₂ → H₂O 를 바르게 고친 것은?',['2H_2 + O_2 → 2H_2O','H_2 + O_2 → H_2O_2','H_2 + O → H_2O','H_4 + O_2 → 2H_2O'],'Balance with coefficients only; never change a subscript.','계수만 바꾸고 아래 첨자는 바꾸지 않는다.','H_2 + O_2 → H_2O')
+
+];
+const BANK=(()=>{const n={};return BANK_RAW.map(x=>{n[x.u]=(n[x.u]||0)+1;return{...x,id:x.u*100+n[x.u]}})})();
+const BANK_BY_ID=Object.fromEntries(BANK.map(x=>[x.id,x]));
+function rich(s){return esc(s).replace(/_(\d+)/g,'<sub>$1</sub>').replace(/\^\{([^}]*)\}/g,'<sup>$1</sup>')}
+/* Choose 3 questions for a match: from the chosen units, avoiding questions either player already had
+   in this tournament, spread over different units when possible. */
+function pickQids(g,a,b,seed){
+  const units=g.units||ALLUNITS;
+  let pool=BANK.filter(q=>units[q.u]);if(!pool.length)pool=BANK;
+  const used=new Set();
+  for(const m of Object.values(D.matches))if(m.tid===g.tid&&Array.isArray(m.qids)&&(m.a===a||m.b===a||m.a===b||m.b===b))m.qids.forEach(x=>used.add(x));
+  let cand=pool.filter(q=>!used.has(q.id));if(cand.length<QN)cand=pool;
+  const order=withSeed(hashStr(seed),()=>shuffle(cand));
+  const pick=[],seenU=new Set();
+  for(const q of order){if(pick.length>=QN)break;if(!seenU.has(q.u)){pick.push(q);seenU.add(q.u)}}
+  for(const q of order){if(pick.length>=QN)break;if(!pick.includes(q))pick.push(q)}
+  return pick.map(q=>q.id);
+}
+function quizFor(m){
+  let ids=Array.isArray(m.qids)?m.qids.filter(id=>BANK_BY_ID[id]):[];
+  if(ids.length<QN)ids=pickQids({tid:m.tid,units:m.units},m.a,m.b,'fallback:'+m.id);
+  return ids.slice(0,QN).map((id,k)=>{
+    const it=BANK_BY_ID[id];
+    const order=withSeed(hashStr(m.id+':'+id),()=>shuffle([0,1,2,3].slice(0,it.o.length)));
+    return{id,unit:it.u,prompt:rich(it.q),ko:esc(it.ko),stage:it.s?`<div class="big">${`<span class="fx">${rich(it.s)}</span>`}</div>`:'',
+      options:order.map(i=>`<span class="opt-en">${rich(it.o[i])}</span>`),answer:order.indexOf(0),
+      explain:`${rich(it.ex)}<span class="ko">${rich(it.exko)}</span>`};
+  });
+}
+
+
+/* ================= constants ================= */
+const QN=3,BASE=32,BONUS_PCT=40,BONUS=BASE*BONUS_PCT/100,PFIELD=300;
+const BTXT='+'+BONUS_PCT+'%',BMAX='+'+BONUS_PCT*QN+'%';
+const WIN_OPTS=[5,7,11,15,21],QT_OPTS=[10,15,20,30,45,60];
+const gWin=()=>(D.game&&D.game.win)||11,gQt=()=>(D.game&&D.game.qtime)||20;
+const padPct=c=>Math.round((BASE+BONUS*c)/BASE*100);
+const lenPct=c=>((BASE+BONUS*c)/PFIELD*100).toFixed(1);
+const qid=(mid,uid)=>mid+'~'+uid;
+
+/* ================= sound ================= */
+let AC=null,MUTED=false;
+try{MUTED=localStorage.getItem('pd-muted')==='1'}catch(e){}
+function ensureAudio(){try{if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume()}catch(e){}}
+document.addEventListener('pointerdown',ensureAudio,{passive:true});
+document.addEventListener('keydown',ensureAudio);
+function beep(f,d,type='square',vol=.12){if(MUTED||!AC)return;try{const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,t);g.gain.setValueAtTime(vol,t+d);g.gain.linearRampToValueAtTime(0,t+d+.01);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d+.02)}catch(e){}}
+const sfx={paddle:()=>beep(459,.05),wall:()=>beep(226,.03),point:()=>beep(490,.26),good:()=>{beep(660,.08,'sine',.18);setTimeout(()=>beep(880,.12,'sine',.18),90)},bad:()=>beep(170,.18,'square',.08)};
+
+/* ================= Firebase connection + data ================= */
+const NS='mz/',R=p=>C.db.ref(NS+(p||''));
+const C={ready:false,db:null,uid:null,isHost:false,wantHost:new URLSearchParams(location.search).has('host'),setup:false,fail:null,user:null,needLogin:false,loginErr:null,signing:false};
+const D={host:null,hostLoaded:false,game:null,gameLoaded:false,slow:false,err:null,tid:null,playersAll:{},players:[],matchesAll:{},matches:{},quizAll:{},quiz:{},quizLoaded:false,matchesLoaded:false};
+let MV=null;
+let advancing=false;
+const autoWatched={};
+
+function toast(msg){let t=$('#toast');if(!t){t=document.createElement('div');t.id='toast';t.className='toast';t.setAttribute('role','status');document.body.appendChild(t)}t.textContent=msg;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>{t.hidden=true},4200)}
+
+const writers={};
+function writeDoc(path,data,mode='set'){
+  if(!C.db)return Promise.resolve();
+  const w=writers[path]||(writers[path]={busy:false,next:null,p:null});
+  if(w.next&&w.next.mode==='update'&&mode==='update')w.next={mode,data:{...w.next.data,...data}};else w.next={mode,data};
+  if(w.busy)return w.p;
+  w.busy=true;
+  w.p=(async()=>{while(w.next){const {mode,data}=w.next;w.next=null;try{const ref=R(path);if(mode==='update')await ref.update(data);else await ref.set(data)}catch(e){toast('Couldn’t save. Check the connection. · 저장하지 못했습니다.')}}w.busy=false})();
+  return w.p;
+}
+
+async function boot(){
+  renderHome();
+  if(!FIREBASE_CONFIG.apiKey||!FIREBASE_CONFIG.databaseURL){C.setup=true;C.ready=true;renderHome();return}
+  if(typeof firebase==='undefined'){C.fail='The Firebase library didn’t load. Check the internet connection. · Firebase를 불러오지 못했습니다.';C.ready=true;renderHome();return}
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebase.auth().onAuthStateChanged(onAuth,e=>{C.fail=(e&&(e.code||e.message))||'unknown error';C.ready=true;renderHome()});
+  }catch(e){C.fail=(e&&(e.code||e.message))||'unknown error';C.ready=true;renderHome();return}
+}
+/* ---------- Google sign-in ---------- */
+const domainOk=email=>!SCHOOL_DOMAIN||String(email||'').toLowerCase().endsWith('@'+SCHOOL_DOMAIN.toLowerCase().replace(/^@/,''));
+function onAuth(u){
+  if(C.db&&(!u||u.uid!==C.uid)){location.reload();return}      /* account switched after loading: start clean */
+  if(!u||u.isAnonymous){C.uid=null;C.user=null;C.needLogin=true;C.ready=true;renderHome();return}
+  if(!domainOk(u.email)){
+    C.loginErr=`Please sign in with your school account (@${SCHOOL_DOMAIN}). · 학교 계정(@${SCHOOL_DOMAIN})으로 로그인하세요. (${u.email||'?'})`;
+    firebase.auth().signOut().catch(()=>{});return;
+  }
+  const name=String(u.displayName||(u.email||'').split('@')[0]||'Player').trim().replace(/\s+/g,' ').slice(0,20);
+  C.uid=u.uid;C.user={name,email:u.email||'',photo:u.photoURL||''};C.needLogin=false;C.loginErr=null;C.ready=true;
+  C.db=firebase.database();subscribeAll();renderHome();
+}
+const inApp=()=>/KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER\(inapp|everytimeApp|DaumApps|; wv\)/i.test(navigator.userAgent||'');
+async function googleSignIn(){
+  if(C.signing)return;C.signing=true;C.loginErr=null;renderHome();
+  const p=new firebase.auth.GoogleAuthProvider();
+  const prm={prompt:'select_account'};if(SCHOOL_DOMAIN)prm.hd=SCHOOL_DOMAIN.replace(/^@/,'');
+  p.setCustomParameters(prm);
+  try{await firebase.auth().signInWithPopup(p)}
+  catch(e){
+    const c=(e&&e.code)||'';
+    const msg={
+      'auth/popup-blocked':'The sign-in window was blocked. Allow pop-ups for this site and try again. · 팝업이 차단되었습니다. 이 사이트의 팝업을 허용하고 다시 누르세요.',
+      'auth/unauthorized-domain':'This web address isn’t allowed yet. Teacher: add it in Firebase → Authentication → Settings → Authorized domains. · 승인된 도메인에 이 주소를 추가해야 합니다.',
+      'auth/operation-not-allowed':'Google sign-in is turned off in Firebase Authentication. · Firebase에서 Google 로그인을 켜 주세요.',
+      'auth/network-request-failed':'Network error. Check the internet connection. · 인터넷 연결을 확인하세요.',
+      'auth/web-storage-unsupported':'This browser blocks sign-in. Open the link in Chrome or Safari. · 크롬이나 사파리에서 열어 주세요.'
+    }[c];
+    if(c!=='auth/popup-closed-by-user'&&c!=='auth/cancelled-popup-request')C.loginErr=msg||('Sign-in failed · 로그인 실패 ('+(c||(e&&e.message)||'error')+')');
+  }
+  C.signing=false;if(C.needLogin)renderHome();
+}
+function signOutNow(){firebase.auth().signOut().then(()=>location.reload(),()=>location.reload())}
+function loginView(){
+  const dom=SCHOOL_DOMAIN?SCHOOL_DOMAIN.replace(/^@/,''):'';
+  const warnApp=inApp()?`<div class="lwarn"><b>Open this link in Chrome or Safari.</b> Google sign-in doesn’t work inside KakaoTalk or other apps. · 카카오톡 등 앱 안에서는 구글 로그인이 안 됩니다. 크롬이나 사파리로 열어 주세요.
+    <div class="acts">${/KAKAOTALK/i.test(navigator.userAgent)?`<a class="btn primary" href="kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}">Open in browser · 기본 브라우저로 열기</a>`:''}<button class="btn" id="copylink" type="button">Copy link · 링크 복사</button></div></div>`:'';
+  return `<section class="status go login"><div><h2>Sign in to play · 로그인하고 참가하기</h2>
+    <p>${dom?`Use your school Google account (<b>@${esc(dom)}</b>).`:'Use your Google account.'} Your name comes from the account. · ${dom?`학교 구글 계정(@${esc(dom)})으로`:'구글 계정으로'} 로그인하세요. 이름은 계정 이름으로 표시됩니다.</p>
+    ${C.loginErr?`<p class="lerr" role="alert">${esc(C.loginErr)}</p>`:''}${warnApp}</div>
+    <div class="acts"><button class="gbtn" id="gsign" ${C.signing?'disabled':''}><svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg><span>${C.signing?'Signing in… · 로그인 중':'Sign in with Google · 구글로 로그인'}</span></button></div></section>`;
+}
+function subscribeAll(){
+  const t=setTimeout(()=>{D.slow=true;if(!D.gameLoaded)renderHome()},10000);
+  const on=(path,cb)=>R(path).on('value',s=>{cb(s.val());onData()},e=>{D.err=(e&&e.code)||'error';D.gameLoaded=D.hostLoaded=true;clearTimeout(t);onData()});
+  C.db.ref('.info/serverTimeOffset').on('value',s=>{C.off=+s.val()||0});
+  on('host',v=>{D.host=typeof v==='string'?v:null;D.hostLoaded=true;C.isHost=!!C.uid&&D.host===C.uid&&C.wantHost});   /* same Google account on another device without ?host = not the host */
+  on('game',v=>{clearTimeout(t);D.slow=false;D.game=v&&typeof v==='object'?v:null;D.gameLoaded=true;D.tid=(D.game&&D.game.tid)||null;recompute()});
+  on('players',v=>{D.playersAll=v&&typeof v==='object'?v:{};recompute()});
+  on('matches',v=>{D.matchesAll=v&&typeof v==='object'?v:{};D.matchesLoaded=true;recompute()});
+  on('quiz',v=>{D.quizAll=v&&typeof v==='object'?v:{};D.quizLoaded=true;recompute()});
+}
+function recompute(){
+  const tid=D.tid;
+  D.players=Object.entries(D.playersAll).filter(([,p])=>p&&p.tid===tid).map(([uid,p])=>({uid,...p})).sort((x,y)=>(x.at||0)-(y.at||0));
+  const ms={};for(const [id,m] of Object.entries(D.matchesAll))if(m&&m.tid===tid)ms[id]={id,...m};D.matches=ms;
+  const qz={};for(const [k,q] of Object.entries(D.quizAll))if(q&&q.tid===tid)qz[k]=q;D.quiz=qz;
+}
+/* Live match channel: each player writes live/<match>/<side> about 20 times a second; it is removed on disconnect. */
+function liveRoom(mid){
+  const base=R('live/'+mid),peers={},offs=[],watching=new Set();
+  let mine=null,lastSent='',timer=0,lastAt=0,dcSide=null,left=false;
+  function flush(){
+    timer=0;lastAt=Date.now();if(left||!mine||(mine.side!==0&&mine.side!==1))return;
+    const s=JSON.stringify(mine);if(s===lastSent)return;lastSent=s;
+    const r=base.child(String(mine.side));
+    if(dcSide!==mine.side){dcSide=mine.side;try{r.onDisconnect().remove()}catch(e){}}
+    r.set(JSON.parse(s)).catch(()=>{});
+  }
+  return{
+    watch(sides){for(const sd of sides){if(watching.has(sd))continue;watching.add(sd);const r=base.child(String(sd));const f=r.on('value',snap=>{const v=snap.val();if(v&&typeof v==='object')peers[sd]={by:v.uid||null,isMe:v.uid===C.uid,sameTab:false,presence:v,updatedAt:Date.now()};else delete peers[sd]});offs.push(()=>r.off('value',f))}},
+    peers:()=>Object.values(peers),
+    presence(patch){if(left)return Promise.resolve();const n={...(mine||{})};for(const k in patch){if(patch[k]===null)delete n[k];else n[k]=patch[k]}mine=n;const now=Date.now();if(now-lastAt>=30)flush();else if(!timer)timer=setTimeout(flush,30-(now-lastAt));return Promise.resolve()},
+    leave(){left=true;clearTimeout(timer);offs.forEach(f=>f());if(dcSide!==null)base.child(String(dcSide)).remove().catch(()=>{});return Promise.resolve()}
+  };
+}
+
+let dataPending=false;
+function onData(){if(dataPending)return;dataPending=true;setTimeout(()=>{dataPending=false;handleData()},30)}
+function handleData(){
+  refreshNames();
+  if(C.isHost)hostAdvance();
+  const mine=myActiveMatch();
+  if(mine&&!(MV&&MV.mid===mine.id&&MV.side>=0)){
+    if(MV&&MV.screen==='result'&&Date.now()-MV.resultAt<5000){setTimeout(onData,5100-(Date.now()-MV.resultAt))}
+    else{openMatch(mine.id,false);return}
+  }
+  if(MV){matchUpdate();return}
+  const bw=byeAutoWatch();if(bw){openMatch(bw,true);return}
+  renderHome();
+}
+
+/* ================= names ================= */
+function nameOf(id){if(!id)return '—';const p=D.playersAll[id];return (p&&typeof p.name==='string'&&p.name.trim())||'Player'}
+function nameSpan(id){return `<span data-uid="${esc(id||'')}">${esc(nameOf(id))}</span>`}
+function paintNames(){document.querySelectorAll('[data-uid]').forEach(el=>{const n=nameOf(el.dataset.uid);if(el.textContent!==n)el.textContent=n});document.querySelectorAll('[data-uid-initial]').forEach(el=>{el.textContent=[...nameOf(el.dataset.uidInitial)][0]||'?'})}
+function refreshNames(){}
+
+/* ================= tournament logic =================
+   Placement tournament. A group of players competes for places lo..lo+n-1. Its players are paired
+   (one bye if odd); winners (and the bye) form a group for the top places, losers a group for the
+   bottom places. A group of one gets its final place. With ranking matches off, the losers' group
+   is not played and its players share the place lo. */
+function phaseOf(m){
+  if(m.w!=null)return 'done';
+  const qa=D.quiz[qid(m.id,m.a)],qb=D.quiz[qid(m.id,m.b)];
+  if(m.status==='pong'||(qa&&qa.done&&qb&&qb.done))return 'pong';
+  return 'quiz';
+}
+const rankOn=g=>!!g&&g.rank!==false;
+const loserOf=m=>m.w===m.a?m.b:m.a;
+function myActiveMatch(){if(!C.uid||!D.game||D.game.status!=='running')return null;for(const m of Object.values(D.matches))if(m.w==null&&(m.a===C.uid||m.b===C.uid))return m;return null}
+function groupsOf(g){return Object.entries((g&&g.groups)||{}).map(([key,gr])=>({key,...gr}))}
+function liveMatches(){if(!D.game||D.game.status!=='running')return [];return Object.values(D.matches).filter(m=>m.w==null).sort((x,y)=>(x.lo-y.lo)||(x.i-y.i))}
+function totalPlayers(g){const root=g&&g.groups&&g.groups.g;return root&&Array.isArray(root.players)?root.players.length:0}
+function placeLabel(lo,n){const hi=lo+n-1;if(n===2)return lo===1?['Final','결승']:[`Places ${lo}–${hi}`,`${lo}·${hi}위전`];return [`Places ${lo}–${hi}`,`${lo}–${hi}위 결정전`]}
+function matchLabel(m){if(!Number.isFinite(m.lo)||!Number.isFinite(m.n))return['Match','경기'];const [en,ko]=placeLabel(m.lo,m.n);return [`Round ${(m.r|0)+1} · ${en}`,ko]}
+function myOpenGroup(){let best=null;for(const gr of groupsOf(D.game))if(gr.state==='play'&&(gr.players||[]).includes(C.uid)&&(!best||gr.key.length>best.key.length))best=gr;return best}
+function byeAutoWatch(){const gr=myOpenGroup();if(!gr||gr.bye!==C.uid)return null;const key=D.tid+':'+gr.key;if(autoWatched[key])return null;const live=liveMatches();if(!live.length)return null;autoWatched[key]=true;return live[0].id}
+function planRounds(n){let r=0,k=n;while(k>1){k=Math.ceil(k/2);r++}return{rounds:r}}
+const newTid=()=>'t'+Date.now().toString(36);
+const plain=o=>JSON.parse(JSON.stringify(o||{}));
+
+function pairGroup(g,key,lo,ps,byes){
+  const order=withSeed(hashStr(g.tid+':'+key),()=>shuffle(ps));
+  let bye=null;
+  if(order.length%2){
+    const min=Math.min(...order.map(u=>byes[u]||0));
+    const cands=order.filter(u=>(byes[u]||0)===min);
+    bye=withSeed(hashStr(g.tid+':bye:'+key),()=>rnd(cands));
+    order.splice(order.indexOf(bye),1);
+  }
+  const mids=[],matches=[];
+  for(let i=0;i<order.length;i+=2){
+    const mid=`${g.tid}-${key}-m${i/2}`;mids.push(mid);
+    matches.push([mid,{tid:g.tid,gk:key,r:key.length-1,i:i/2,lo,n:ps.length,a:order[i],b:order[i+1],w:null,status:'quiz',score:[0,0],qids:pickQids(g,order[i],order[i+1],g.tid+':q:'+mid),units:g.units||ALLUNITS,win:g.win||11,qtime:g.qtime||20,at:Date.now()}]);
+  }
+  return{mids,bye,matches};
+}
+async function splitGroup(g,key,gr,ms){
+  const winners=ms.map(m=>m.w);if(gr.bye)winners.push(gr.bye);
+  const losers=ms.map(loserOf);
+  const byes={...(g.byes||{})},up={},newMatches=[];
+  up['groups/'+key+'/state']='done';
+  for(const [k,lo,ps] of [[key+'w',gr.lo,winners],[key+'l',gr.lo+winners.length,losers]]){
+    if(!ps.length)continue;
+    if(ps.length===1){up['ranks/'+ps[0]]=lo;continue}
+    if(k.endsWith('l')&&!rankOn(g)){ps.forEach(u=>{up['ranks/'+u]=lo});continue}
+    const pg=pairGroup(g,k,lo,ps,byes);if(pg.bye)byes[pg.bye]=(byes[pg.bye]||0)+1;
+    up['groups/'+k]={lo,n:ps.length,players:ps,mids:pg.mids,bye:pg.bye||null,state:'play'};
+    newMatches.push(...pg.matches);
+  }
+  up.byes=byes;
+  for(const [mid,data] of newMatches)await R('matches/'+mid).set(data);
+  await R('game').update(up);
+}
+function readyGroups(g){return groupsOf(g).filter(gr=>gr.state==='play'&&(gr.mids||[]).every(id=>D.matches[id]&&D.matches[id].w!=null))}
+async function hostAdvance(){
+  if(!C.isHost||advancing||!C.db)return;
+  const g=D.game;if(!g||g.status!=='running'||!g.groups||!D.matchesLoaded)return;
+  const ready=readyGroups(g);
+  if(ready.length){
+    advancing=true;
+    try{const gr=ready[0];await splitGroup(plain(g),gr.key,gr,gr.mids.map(id=>D.matches[id]))}
+    catch(e){toast('Couldn’t draw the next matches. Try “Draw next matches”. · 다음 경기 생성 실패')}
+    finally{advancing=false}
+    return;
+  }
+  const ranks=g.ranks||{},n=totalPlayers(g);
+  if(n&&Object.keys(ranks).length>=n&&!groupsOf(g).some(gr=>gr.state==='play')){
+    const champ=Object.keys(ranks).find(u=>ranks[u]===1)||null;
+    try{await R('game').update({status:'done',champion:champ,endedAt:Date.now()})}catch(e){}
+  }
+}
+async function hostStart(){
+  const g=D.game,ids=D.players.map(p=>p.uid);
+  if(!g||ids.length<2||advancing)return;
+  advancing=true;
+  try{
+    const fresh={...plain(g),status:'running',groups:null,ranks:null,byes:null,champion:null,startedAt:Date.now()};
+    const byes={};const pg=pairGroup(fresh,'g',1,ids,byes);if(pg.bye)byes[pg.bye]=1;
+    for(const [mid,data] of pg.matches)await R('matches/'+mid).set(data);
+    fresh.groups={g:{lo:1,n:ids.length,players:ids,mids:pg.mids,bye:pg.bye||null,state:'play'}};fresh.byes=byes;
+    await R('game').set(fresh);
+  }catch(e){toast('Couldn’t start the tournament. · 토너먼트를 시작하지 못했습니다.')}
+  finally{advancing=false}
+}
+async function hostNewLobby(){
+  const G0=D.game||{};const units=G0.units||ALLUNITS,keep={win:G0.win||11,qtime:G0.qtime||20,rank:G0.rank!==false};
+  try{await R().update({game:{tid:newTid(),status:'lobby',units,...keep,at:Date.now()},players:null,matches:null,quiz:null,live:null})}catch(e){toast('Couldn’t open the lobby. · 대기실을 열지 못했습니다.')}
+}
+async function award(mid,side){
+  const m=D.matches[mid];if(!m)return;
+  try{await R('matches/'+mid).update({w:side?m.b:m.a,status:'done',forfeit:true,endedAt:Date.now()})}catch(e){toast('Couldn’t update the match. · 경기 결과를 저장하지 못했습니다.')}
+}
+async function joinLobby(){
+  if(!C.uid||!D.game||!C.user)return;
+  const name=C.user.name||'Player';
+  try{await R('players/'+C.uid).set({name,tid:D.game.tid,at:Date.now()})}catch(e){toast('Couldn’t join. Try again. · 참가하지 못했습니다.')}
+}
+async function leaveLobby(uid){try{await R('players/'+uid).remove()}catch(e){toast('Couldn’t remove. · 삭제하지 못했습니다.')}}
+
+/* ================= shared UI bits ================= */
+function twoStep(btn,label,fn){if(!btn)return;let armed=false,t;btn.addEventListener('click',()=>{if(armed){clearTimeout(t);armed=false;fn();return}armed=true;const old=btn.innerHTML;btn.innerHTML=label;btn.classList.add('warn');t=setTimeout(()=>{armed=false;btn.innerHTML=old;btn.classList.remove('warn')},3500)})}
+function brandMark(){return `<svg viewBox="0 0 220 90" aria-hidden="true"><rect x="2" y="8" width="216" height="74" rx="10" fill="#050816"/><g fill="#9FE6FF">${[48,64,80,96].map(x=>`<rect x="${x}" y="43" width="5" height="5"/>`).join('')}</g><circle cx="28" cy="45" r="17" fill="#FF6A3D"/><circle cx="21" cy="38" r="6" fill="#FFB08A"/><rect x="20" y="47" width="16" height="4" fill="#fff"/><rect x="26" y="41" width="4" height="16" fill="#fff"/><rect x="30" y="34" width="5" height="5" fill="#fff"/><rect x="37" y="34" width="5" height="5" fill="#fff"/>${[['#FF4D6D',128],['#FFD23F',160],['#B36BFF',192]].map(([c,x])=>`<polygon points="${[0,1,2,3,4,5].map(k=>{const a=Math.PI/3*k+Math.PI/6;return (x+Math.cos(a)*15).toFixed(1)+','+(45+Math.sin(a)*15).toFixed(1)}).join(' ')}" fill="${c}"/><circle cx="${x-5}" cy="42" r="3.5" fill="#fff"/><circle cx="${x+5}" cy="42" r="3.5" fill="#fff"/><circle cx="${x}" cy="25" r="2.2" fill="#fff"/>`).join('')}</svg>`}
+function topbar(){
+  let me='';
+  const mine=D.players.find(p=>p.uid===C.uid);
+  if(C.user){
+    const nm=C.isHost?'Teacher':(mine?mine.name:C.user.name);
+    const role=C.isHost?'Host device · 진행자':(mine?'Student · 학생':'Signed in · 로그인됨');
+    const canSwitch=!D.game||D.game.status==='lobby'||D.game.status==='done'||C.isHost||!mine;
+    me=`<div class="me">${C.user.photo?`<img src="${esc(C.user.photo)}" alt="" referrerpolicy="no-referrer">`:''}<span><b>${esc(nm)}</b><span class="role">${role}</span><small class="mail">${esc(C.user.email)}</small></span>${canSwitch?`<button class="btn sm ghost" id="signout" type="button">계정 바꾸기</button>`:''}</div>`;
+  }
+  return `<header class="top"><div class="brand">${brandMark()}<div><p class="eyebrow">Grade 9 Science · Structure of Matter</p><h1>Proton Maze</h1><p>프로톤 메이즈 · 문제 풀고 1대1 미로 생존 토너먼트</p></div></div>${me}</header>`;
+}
+const studentLink=()=>location.origin+location.pathname;
+function linkBox(){return `<div class="linkbox"><code id="slink">${esc(studentLink())}</code><button class="btn sm" id="copy" type="button">Copy · 복사</button></div>`}
+function howCard(open){
+  return `<details class="panel how"${open?' open':''}><summary>How to play · 진행 방법</summary><ol>
+    <li>Open the class link in Chrome or Safari, sign in with ${SCHOOL_DOMAIN?'your school':'your'} Google account and tap <b>Join</b>.<span>크롬이나 사파리로 링크를 열고 ${SCHOOL_DOMAIN?'학교 ':''}구글 계정으로 로그인한 뒤 참가하기를 누릅니다.</span></li>
+    <li>Each match starts with the same 3 questions for both players, ${gQt()} seconds each.<span>두 사람이 같은 문제 3개를 풉니다. 문제당 ${gQt()}초.</span></li>
+    <li>Every correct answer gives you one life (up to 3). Get all 3 wrong and it’s game over before the maze starts. If both players get all wrong, both play with 1 life.<span>정답 1개 = 생명 1개(최대 3). 모두 틀리면 미로 게임을 해 보지도 못하고 게임 오버. 둘 다 모두 틀리면 둘 다 생명 1개로 대결.</span></li>
+    <li>Then both players play the maze at the same time. Eat every electron to clear a level; each level gets faster and harder. Catalysts let you catch the radicals for a short time. The first player to lose all lives loses the match.<span>두 사람이 동시에 미로를 플레이합니다. 전자를 모두 먹으면 다음 레벨(점점 빨라지고 어려워짐). 촉매를 먹으면 잠시 라디칼을 잡을 수 있어요. 생명을 먼저 다 잃는 사람이 집니다.</span></li>
+    <li>Move with the arrow keys, swipe on the maze, or tap the on-screen pad. You can watch your opponent’s maze live beside yours.<span>방향키, 화면 밀기, 화면 버튼으로 움직입니다. 옆에서 상대 화면이 실시간으로 보입니다.</span></li>
+    ${rankOn(D.game)?`<li>Ranking matches: winners play winners for the higher places and losers play losers for the lower places, until every player has a final place.<span>순위결정전: 이긴 사람끼리 윗순위를, 진 사람끼리 아랫순위를 겨뤄 모든 학생의 최종 순위가 정해집니다.</span></li>`:`<li>Winners move on. Lose once and you’re out.<span>이긴 사람이 다음 라운드로, 지면 탈락입니다.</span></li>`}
+    <li>With an odd number of players in a group, one player gets a bye and watches a live match.<span>인원이 홀수면 1명이 부전승으로 올라가고 다른 경기를 관람합니다.</span></li>
+  </ol></details>`;
+}
+
+/* ================= home ================= */
+function renderHome(){
+  let main='';
+  if(!C.ready)main=`<section class="panel"><p class="muted">Connecting… · 연결 중</p></section>`;
+  else if(C.setup)main=setupView();
+  else if(C.fail)main=`<section class="status"><div><h2>Can’t connect · 연결할 수 없습니다</h2><p>${esc(C.fail)}</p><p>Check that Google sign-in is turned on in Firebase Authentication and that the config at the top of the file is correct. · Firebase의 Google 로그인 사용 설정과 파일 맨 위 설정값을 확인하세요.</p></div></section>`;
+  else if(C.needLogin)main=loginView();
+  else if(D.err&&!D.game)main=`<section class="status"><div><h2>The database refused access · 데이터베이스 접근 거부</h2><p>Check the Realtime Database rules from the setup guide. (${esc(D.err)}) · 설정 안내의 보안 규칙을 확인하세요.</p></div></section>`;
+  else if(!D.gameLoaded||!D.hostLoaded)main=`<section class="panel"><p class="muted">${D.slow?'The game data can’t be reached yet. Check your connection. · 데이터에 연결할 수 없습니다.':'Loading the tournament… · 불러오는 중'}</p></section>`;
+  else if(C.wantHost&&!C.isHost)main=hostClaimView();
+  else if(!D.game)main=C.isHost?hostOpenView():`<section class="status"><div><h2>Waiting for your teacher · 선생님을 기다리는 중</h2><p>The lobby opens when your teacher starts a tournament. Keep this page open. · 선생님이 대기실을 열면 참가할 수 있습니다.</p></div></section>`;
+  else if(D.game.status==='lobby')main=lobbyView(D.game);
+  else main=tournamentView(D.game);
+  app.innerHTML=`<div class="wrap">${topbar()}${main}${C.setup?'':howCard(!D.game||D.game.status==='lobby')}</div>`;
+  wireHome();
+}
+function setupView(){
+  return `<section class="panel setup"><h2>Setup needed · 설정이 필요합니다</h2><p>This copy isn’t connected to a Firebase project yet. Open <b>index.html</b> in a text editor and paste your Firebase config at the top (look for <b>FIREBASE_CONFIG</b>). · 파일 맨 위 FIREBASE_CONFIG에 Firebase 설정값을 붙여 넣으세요.</p><ol><li>Create a Firebase project and a Realtime Database. · 프로젝트와 실시간 데이터베이스 만들기</li><li>Turn on Google sign-in. · Google 로그인 켜기</li><li>Paste the security rules. · 보안 규칙 붙여 넣기</li><li>Paste the web config here and upload the file. · 설정값 붙여 넣고 파일 올리기</li></ol></section>`;
+}
+function hostClaimView(){
+  if(!D.host)return `<section class="status go"><div><h2>Make this device the host · 이 기기를 진행자로</h2><p>The host device opens the lobby, starts the tournament and draws each round. Use the computer you will project. · 프로젝터에 연결된 컴퓨터에서 누르세요.</p></div><div class="acts"><button class="btn primary big" id="claim">Become host · 진행자 되기</button></div></section>`;
+  return `<section class="status"><div><h2>Another device is the host · 다른 기기가 진행자입니다</h2><p>To move hosting here, press “Release host” on that device, or open the Firebase console → Realtime Database, delete the <b>host</b> entry, and reload this page. · 기존 기기에서 “진행자 해제”를 누르거나 Firebase 콘솔에서 host 항목을 지운 뒤 새로고침하세요.</p></div></section>`;
+}
+function segBox(key,label,opts,cur,fmtv){
+  return `<div class="setrow"><span class="lbl">${label}</span><div class="seg" role="radiogroup" aria-label="${label}">${opts.map(v=>`<label><input type="radio" name="${key}" id="${key}-${v}" value="${v}" ${v===cur?'checked':''}><span>${fmtv(v)}</span></label>`).join('')}</div></div>`;
+}
+function unitsBox(g){
+  const cnt={};BANK.forEach(q=>{cnt[q.u]=(cnt[q.u]||0)+1});
+  return `<div class="types">${Object.entries(UNITS).map(([k,[en,ko,code]])=>`<label class="chk"><input type="checkbox" id="un-${k}" data-k="${k}" ${(g.units||ALLUNITS)[k]?'checked':''}><span><b>${code} ${en}</b><small>${ko} · ${cnt[k]||0} questions</small></span></label>`).join('')}</div>`;
+}
+function hostOpenView(){
+  return `<section class="status go"><div><h2>Start a class tournament · 대회 열기</h2><p>Open the lobby, then have students open this page on their own devices and tap Join. · 대기실을 열고 학생들이 각자 기기로 접속해 참가하게 하세요.</p></div><div class="acts"><button class="btn primary big" id="open">Open lobby · 대기실 열기</button></div></section>`;
+}
+function lobbyView(g){
+  const ps=D.players,n=ps.length,pl=planRounds(n);
+  let join='';
+  const mine=ps.find(p=>p.uid===C.uid);
+  if(C.isHost)join=`<p class="note">Students open the link on their own devices, sign in with Google and tap Join. · 학생들은 각자 기기로 링크를 열고 구글로 로그인한 뒤 참가합니다.</p>`;
+  else if(!mine)join=`<form class="joinf" id="joinf"><div class="joinrow"><p>Join as <b>${esc((C.user&&C.user.name)||'')}</b> <span class="muted">${esc((C.user&&C.user.email)||'')}</span></p><button class="btn primary big" type="submit">Join · 참가하기</button></div></form>`;
+  else join=`<div class="phead"><p><b>You’re in as ${esc(mine.name)}!</b> <span class="muted">Waiting for the teacher to start. · 시작을 기다리는 중</span></p><button class="btn sm ghost" id="leave">Leave · 나가기</button></div>`;
+  const chips=n?`<div class="plist">${ps.map(p=>`<span class="pchip${p.uid===C.uid?' me':''}">${nameSpan(p.uid)}${C.isHost?`<button data-kick="${esc(p.uid)}" aria-label="Remove player">×</button>`:''}</span>`).join('')}</div>`:`<div class="empty">No one has joined yet. · 아직 참가자가 없습니다.</div>`;
+  const left=`<section class="panel"><div class="phead"><h2>Lobby <span class="ko">대기실</span></h2><span class="count">${n} joined · ${n}명 참가</span></div>${join}${chips}</section>`;
+  let right='';
+  if(C.isHost){
+    right=`<section class="panel"><h2>Teacher controls <span class="ko">교사 설정</span></h2>
+      <p class="note">Share this link with students (without <b>?host</b>). Keep this page open: it draws each new round automatically. · 학생에게 아래 링크를 공유하고, 이 화면을 켜 두세요.</p>${linkBox()}
+      <h2>Match settings <span class="ko">경기 설정</span></h2>${segBox('qtime','Time per question · 문제당 시간',QT_OPTS,gQt(),v=>v+'초')}
+      <label class="chk"><input type="checkbox" id="ranktoggle" ${rankOn(g)?'checked':''}><span><b>Ranking matches · 순위결정전</b><small>Winners play winners and losers play losers until every player has a final place. Off: lose once and you’re out. · 이긴 사람끼리, 진 사람끼리 계속 겨뤄 모든 학생의 순위를 정합니다. 끄면 한 번 지면 탈락.</small></span></label>
+      <h2>Lessons <span class="ko">출제 단원</span></h2>${unitsBox(g)}
+      <div class="plan">${n>=2?`${n} players · ${pl.rounds} round${pl.rounds>1?'s':''} · ${rankOn(g)?`up to ${pl.rounds} matches each, places 1–${n} decided · 1인당 최대 ${pl.rounds}경기, 1–${n}위까지 결정`:`single elimination · 한 번 지면 탈락`}`:'Need at least 2 players · 최소 2명'}</div>
+      <button class="btn primary big" id="start" ${n<2?'disabled':''}>Start tournament · 토너먼트 시작</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm ghost" id="reset">Clear lobby · 대기실 초기화</button><button class="btn sm ghost" id="release">Release host · 진행자 해제</button></div></section>`;
+  }else{
+    right=`<section class="panel"><h2>Lives <span class="ko">생명</span></h2><p class="note">Answer within ${gQt()} seconds: each correct answer = 1 life in the maze. All wrong = game over. Lose all your lives first and you lose the match. · 문제당 ${gQt()}초, 정답 1개 = 생명 1개, 모두 틀리면 게임 오버, 먼저 생명을 다 잃으면 패배.</p><div class="lv-slots demo">${[0,1,2].map(()=>`<span class="slot on">${LIFE_ICON}</span>`).join('')}</div></section>`;
+  }
+  return `<div class="grid2">${left}${right}</div>`;
+}
+function padsDemo(){
+  return `<div class="pads-row">${[0,1,2,3].map(c=>`<div class="pp"><div class="pp-field"><div class="pp-net"></div><div class="pp-pad l" style="--h:${lenPct(c)}%"></div></div><div class="pp-lab"><b>${c}/3</b><span class="pct">${padPct(c)}%</span></div></div>`).join('')}</div>`;
+}
+function placeOf(u){const r=D.game&&D.game.ranks&&D.game.ranks[u];return Number.isFinite(r)?r:null}
+function tiedAt(r){return Object.values((D.game&&D.game.ranks)||{}).filter(x=>x===r).length>1}
+function placeText(r){return `${tiedAt(r)?'공동 ':''}${r}위`}
+function tournamentView(g){
+  let html='';
+  if(g.status==='done')html+=podium(g);
+  html+=myStatusCard(g);
+  const live=liveMatches();
+  if(live.length)html+=`<section class="panel"><div class="phead"><h2>Live now <span class="ko">진행 중인 경기</span></h2><span class="count">${live.length} match${live.length>1?'es':''}</span></div><div class="live">${live.map(liveCard).join('')}</div></section>`;
+  if(g.status==='running'&&!g.groups)html+=`<section class="panel"><p class="muted">Drawing the first round… · 대진 추첨 중</p></section>`;
+  if(g.groups)html+=`<div class="grid2 sr">${standingsPanel(g)}${roundsPanel(g)}</div>`;
+  if(C.isHost)html+=hostRunPanel(g);
+  return html;
+}
+function podium(g){
+  const ranks=g.ranks||{};const top=Object.keys(ranks).filter(u=>ranks[u]<=3).sort((x,y)=>ranks[x]-ranks[y]);
+  const first=top.filter(u=>ranks[u]===1);
+  const nm=first[0]?nameOf(first[0]):'?';
+  const others=top.filter(u=>ranks[u]>1).map(u=>`<p><b>${placeText(ranks[u])}</b> · ${nameSpan(u)}</p>`).join('');
+  const mine=placeOf(C.uid);
+  return `<section class="status gold champ"><div class="tile"><span class="tz">1</span><span class="tsym" data-uid-initial="${esc(first[0]||'')}">${esc([...nm][0]||'?')}</span><span class="tname">${first.map(nameSpan).join(', ')}</span></div><div><p class="eyebrow">Final standings · 최종 순위</p><h2>${first.map(nameSpan).join(', ')}</h2>${others}${mine!=null&&!C.isHost?`<p style="margin-top:8px">Your place · 나의 순위: <b>${placeText(mine)}</b> / ${totalPlayers(g)}명</p>`:''}</div></section>`;
+}
+function standingsPanel(g){
+  const ps=(g.groups&&g.groups.g&&g.groups.g.players)||[];
+  const open={};for(const gr of groupsOf(g))if(gr.state==='play')for(const u of gr.players||[])if(!open[u]||gr.key.length>open[u].key.length)open[u]=gr;
+  const rows=ps.map(u=>{const r=placeOf(u);const gr=open[u];const lo=r!=null?r:gr?gr.lo:999;return{u,r,gr,lo,hi:gr?gr.lo+gr.n-1:lo}}).sort((x,y)=>(x.lo-y.lo)||(x.hi-y.hi));
+  const body=rows.map(x=>`<div class="mc st"><div class="r${x.u===C.uid?' mine':''}"><span>${nameSpan(x.u)}</span><span class="sc">${x.r!=null?`<b>${placeText(x.r)}</b>`:x.gr?`${x.gr.lo}–${x.gr.lo+x.gr.n-1}위 경쟁`:'…'}</span></div></div>`).join('');
+  return `<section class="panel"><h2>Standings <span class="ko">순위표</span></h2><div class="standings">${body}</div></section>`;
+}
+function roundsPanel(g){
+  const byR={};for(const gr of groupsOf(g))(byR[gr.key.length-1]=byR[gr.key.length-1]||[]).push(gr);
+  const cols=Object.keys(byR).map(Number).sort((a,b)=>a-b).map(r=>{
+    const grs=byR[r].sort((a,b)=>a.lo-b.lo);
+    const body=grs.map(gr=>{const [en,ko]=placeLabel(gr.lo,gr.n);return `<p class="glab">${ko}</p>${(gr.mids||[]).map(id=>matchCard(D.matches[id])).join('')}${gr.bye?`<div class="mc bye"><div class="r"><span>${nameSpan(gr.bye)}</span><span class="pill">Bye</span></div></div>`:''}`}).join('');
+    return `<div class="round"><h3>Round ${r+1}<span>${r+1}라운드</span></h3><div class="round-body rb-top">${body}</div></div>`;
+  }).join('');
+  return `<section class="panel"><h2>Matches <span class="ko">라운드별 경기</span></h2><div class="bracket-scroll"><div class="bracket">${cols}</div></div></section>`;
+}
+function myStatusCard(g){
+  if(!C.uid||!g.groups)return '';
+  const root=g.groups.g;const inT=root&&(root.players||[]).includes(C.uid);
+  if(!inT)return C.isHost?'':`<section class="status"><div><h2>You’re watching · 관람 중</h2><p>This tournament started before you joined. Pick a live match to watch. · 진행 중인 경기를 골라 관람하세요.</p></div></section>`;
+  if(g.status==='done')return '';
+  const lv=liveMatches(),watchBtn=lv.length?`<div class="acts"><button class="btn primary" data-watch="${esc(lv[0].id)}">Watch a match · 관람하기</button></div>`:'';
+  const act=myActiveMatch();
+  if(act)return `<section class="status go"><div><h2>Your match is ready · 경기 준비 완료</h2><p>${matchLabel(act)[1]}</p></div><div class="acts"><button class="btn primary big" data-play="${esc(act.id)}">Play · 경기하기</button></div></section>`;
+  const r=placeOf(C.uid);
+  if(r!=null)return `<section class="status gold"><div><h2>Your final place: ${placeText(r)} · 최종 순위</h2><p>${r===1?'You won the tournament! · 우승!':'Thanks for playing! Keep watching the remaining matches. · 수고했어요! 남은 경기를 관람하세요.'} (${totalPlayers(g)}명 중)</p></div>${watchBtn}</section>`;
+  const gr=myOpenGroup();
+  if(gr&&gr.bye===C.uid)return `<section class="status go"><div><h2>Bye this round · 이번 라운드 부전승</h2><p>You move on in the race for places ${gr.lo}–${gr.lo+gr.n-1}. Watch a live match while you wait. · ${gr.lo}–${gr.lo+gr.n-1}위 결정전에서 부전승! 기다리는 동안 경기를 관람하세요.</p></div>${watchBtn}</section>`;
+  if(gr)return `<section class="status"><div><h2>Next match coming · 다음 경기 준비 중</h2><p>You’re playing for places ${gr.lo}–${gr.lo+gr.n-1}. Your next match starts when the other matches in this group finish. · ${gr.lo}–${gr.lo+gr.n-1}위를 겨루는 중입니다. 같은 조 경기가 끝나면 다음 경기가 시작됩니다.</p></div>${watchBtn}</section>`;
+  return `<section class="status"><div><h2>Next match coming · 다음 경기 준비 중</h2><p>Drawing your next match… · 다음 대진을 만드는 중</p></div>${watchBtn}</section>`;
+}
+function liveCard(m){
+  const ph=phaseOf(m);
+  const qa=D.quiz[qid(m.id,m.a)],qb=D.quiz[qid(m.id,m.b)];
+  const pill=ph==='quiz'?`<span class="pill q dot">Questions · 문제</span>`:`<span class="pill p dot">Maze · 미로</span>`;
+  const sub=ph==='quiz'?`${(qa&&qa.ans||[]).length}/3 · ${(qb&&qb.ans||[]).length}/3 answered`:'Last one standing · 끝까지 살아남기';
+  const host=C.isHost?`<div class="award"><button class="btn sm" data-award="${esc(m.id)}" data-side="0">${nameSpan(m.a)} wins</button><button class="btn sm" data-award="${esc(m.id)}" data-side="1">${nameSpan(m.b)} wins</button></div>`:'';
+  return `<div class="lm"><div class="row">${pill}<span class="pill">${matchLabel(m)[1]}</span><span class="sub">${sub}</span></div><div class="vsl"><span style="color:var(--red)">${nameSpan(m.a)}</span><em>vs</em><span style="color:var(--blue)">${nameSpan(m.b)}</span></div><div class="row"><button class="btn sm primary" data-watch="${esc(m.id)}">Watch · 관람</button></div>${host}</div>`;
+}
+function matchCard(m){
+  if(!m)return `<div class="mc"><div class="r"><span class="muted">…</span></div></div>`;
+  const sc=[scoreOf(m,0),scoreOf(m,1)],done=m.w!=null;
+  const row=(id,s)=>{const cls=[done?(m.w===id?'win':'lose'):'',id===C.uid?'mine':''].join(' ');return `<div class="r ${cls}"><span>${nameSpan(id)}</span><span class="sc">${done&&m.forfeit?(m.w===id?'W':'–'):(done?sc[s]:'')}</span></div>`};
+  const ph=phaseOf(m);
+  const foot=done?`<span class="pill d">Final</span>`:ph==='pong'?`<span class="pill p dot">Maze</span>`:`<span class="pill q dot">Questions</span>`;
+  const inner=row(m.a,0)+row(m.b,1)+`<div class="foot">${foot}${done?'':'<span class="count">Watch →</span>'}</div>`;
+  return done?`<div class="mc">${inner}</div>`:`<button class="mc" data-watch="${esc(m.id)}" aria-label="Watch this match">${inner}</button>`;
+}
+function hostRunPanel(g){
+  const stuck=g.status==='running'&&readyGroups(g).length>0;
+  return `<section class="panel"><h2>Teacher controls <span class="ko">교사 설정</span></h2>
+    <p class="note">Keep this page open: when every match in a group ends, it draws that group’s next matches. If a student drops out, use the “wins” buttons on a live match to award it. · 이 화면을 켜 두면 다음 경기가 자동으로 만들어집니다. 학생이 접속하지 못하면 “wins” 버튼으로 승자를 지정하세요.</p>
+    ${linkBox()}<div class="acts" style="display:flex;gap:8px;flex-wrap:wrap">${stuck?`<button class="btn primary" id="advance">Draw next matches · 다음 경기 만들기</button>`:''}<button class="btn" id="newt">New tournament · 새 대회</button><button class="btn ghost" id="release">Release host · 진행자 해제</button></div></section>`;
+}
+function wireHome(){
+  const on=(sel,fn)=>{const el=$(sel);if(el)el.addEventListener('click',fn)};
+  on('#open',hostNewLobby);
+  on('#gsign',googleSignIn);
+  twoStep($('#signout'),'Click again · 한 번 더 누르면 로그아웃',signOutNow);
+  on('#copylink',()=>{try{navigator.clipboard.writeText(location.href).then(()=>toast('Link copied · 링크 복사됨'))}catch(e){}});
+  const jf=$('#joinf');if(jf)jf.addEventListener('submit',e=>{e.preventDefault();joinLobby()});
+  on('#claim',()=>R('host').set(C.uid).catch(()=>toast('Couldn’t become host. Another device may have taken it. · 진행자 설정 실패')));
+  on('#copy',()=>{const el=$('#slink');const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r)};try{navigator.clipboard.writeText(el.textContent).then(()=>toast('Link copied · 링크 복사됨'),sel)}catch(e){sel()}});
+  twoStep($('#release'),'Click again to release · 한 번 더',()=>R('host').remove().catch(()=>{}));
+  on('#leave',()=>leaveLobby(C.uid));
+  on('#start',hostStart);
+  on('#advance',hostAdvance);
+  twoStep($('#newt'),'Click again to reset · 한 번 더 누르면 새 대회',hostNewLobby);
+  twoStep($('#reset'),'Click again to clear · 한 번 더 누르면 초기화',hostNewLobby);
+  document.querySelectorAll('input[name=win],input[name=qtime]').forEach(r=>r.addEventListener('change',()=>{if(r.checked)writeDoc('game',{[r.name]:+r.value},'update')}));
+  const rkt=$('#ranktoggle');if(rkt)rkt.addEventListener('change',()=>writeDoc('game',{rank:rkt.checked},'update'));
+  document.querySelectorAll('[data-kick]').forEach(b=>b.addEventListener('click',()=>leaveLobby(b.dataset.kick)));
+  document.querySelectorAll('.types input').forEach(c=>c.addEventListener('change',()=>{const t={...((D.game&&D.game.units)||ALLUNITS),[c.dataset.k]:c.checked};if(!Object.values(t).some(Boolean)){c.checked=true;toast('Keep at least one lesson. · 출제 단원을 하나 이상 선택하세요.');return}writeDoc('game',{units:t},'update')}));
+  document.querySelectorAll('[data-watch]').forEach(b=>b.addEventListener('click',()=>openMatch(b.dataset.watch,true)));
+  document.querySelectorAll('[data-play]').forEach(b=>b.addEventListener('click',()=>openMatch(b.dataset.play,false)));
+  document.querySelectorAll('[data-award]').forEach(b=>twoStep(b,'Confirm · 확인',()=>award(b.dataset.award,+b.dataset.side)));
+}
+
+/* ================= match container ================= */
+function openMatch(mid,watch){
+  closeMatch();
+  const m=D.matches[mid];if(!m){renderHome();return}
+  const side=watch?-1:(m.a===C.uid?0:m.b===C.uid?1:-1);
+  MV={mid,side,screen:null,q:null,pong:null,room:null,roomP:null,resultAt:0,stW:false};
+  if(C.db)MV.room=liveRoom(mid);
+  window.scrollTo(0,0);
+  matchUpdate();
+}
+function closeMatch(){
+  if(!MV)return;const my=MV;MV=null;
+  if(my.q)clearInterval(my.q.tick),clearTimeout(my.q.adv);
+  if(my.pong)my.pong.stop();
+  if(my.room)my.room.leave().catch(()=>{});
+}
+function goHome(){closeMatch();renderHome();window.scrollTo(0,0)}
+function matchUpdate(){
+  const m=D.matches[MV.mid];if(!m){goHome();return}
+  const ph=phaseOf(m);
+  if(ph==='done')return showScreen('result');
+  if(MV.side>=0){
+    if(!D.quizLoaded)return showScreen('loading');
+    if(!MV.q)initQuiz(m);
+    if(MV.q.state==='active')return showScreen('quiz');
+    if(ph==='pong'){if(m.status!=='pong'&&!MV.stW){MV.stW=true;writeDoc('matches/'+m.id,{status:'pong'},'update')}return showScreen('pong')}
+    return showScreen('wait');
+  }
+  return showScreen(ph==='pong'?'pong':'watchquiz');
+}
+function showScreen(name){
+  if(MV.screen===name){refreshScreen();return}
+  if(MV.pong&&name!=='pong'){if(MV.pong.finalize)MV.pong.finalize();MV.pong.stop();MV.pong=null}
+  MV.screen=name;
+  ({loading:buildLoading,quiz:buildQuiz,wait:buildWait,watchquiz:buildWatchQuiz,pong:buildPong,result:buildResult})[name]();
+  paintNames();
+}
+function refreshScreen(){
+  const m=D.matches[MV.mid];if(!m)return;
+  if(MV.screen==='quiz'||MV.screen==='wait'||MV.screen==='watchquiz')updatePads(m);
+  if(MV.screen==='wait')updateWaitText(m);
+  if(MV.screen==='watchquiz'||(MV.screen==='pong'&&MV.side<0))updateSwitcher();
+  paintNames();
+}
+function mhead(m,compact){
+  const lab=matchLabel(m);
+  const w=MV.side<0;
+  if(compact)return `<header class="mhead"><p class="eyebrow">${lab[0]} · ${lab[1]}${w?' · Watching · 관람 중':''}</p>${w?`<button class="btn sm" id="mback">← Bracket · 대진표</button>`:''}</header>`;
+  return `<header class="mhead"><div><p class="eyebrow">${lab[0]} · ${lab[1]}${w?' · Watching · 관람 중':''}</p><h2 class="vs"><span class="l">${nameSpan(m.a)}${MV.side===0?' <small>you</small>':''}</span><em>vs</em><span class="r">${nameSpan(m.b)}${MV.side===1?' <small>you</small>':''}</span></h2></div>${w?`<button class="btn sm" id="mback">← Bracket · 대진표</button>`:''}</header>`;
+}
+function wireBack(){const b=$('#mback');if(b)b.addEventListener('click',goHome)}
+function switcherHTML(){
+  if(MV.side>=0)return '';
+  const others=liveMatches().filter(m=>m.id!==MV.mid);
+  if(!others.length)return `<div class="switch" id="switch"></div>`;
+  return `<div class="switch" id="switch"><span class="count">Other live matches · 다른 경기</span>${others.map(m=>`<button class="btn sm" data-sw="${esc(m.id)}">${nameSpan(m.a)} vs ${nameSpan(m.b)}</button>`).join('')}</div>`;
+}
+function updateSwitcher(){const s=$('#switch');if(!s)return;const html=switcherHTML();const tmp=document.createElement('div');tmp.innerHTML=html;const n=tmp.firstElementChild;if(n&&n.innerHTML!==s.innerHTML){s.innerHTML=n.innerHTML;wireSwitcher();paintNames()}}
+function wireSwitcher(){document.querySelectorAll('[data-sw]').forEach(b=>b.addEventListener('click',()=>openMatch(b.dataset.sw,true)))}
+function buildLoading(){app.innerHTML=`<div class="mwrap"><section class="panel"><p class="muted">Loading your match… · 경기 불러오는 중</p></section></div>`}
+
+/* ---------- lives panel ---------- */
+function padsHTML(m,title){
+  const pp=s=>{const id=s?m.b:m.a;return `<div class="lv ${s?'R':'L'}" id="pp${s}" data-c="-1"><b>${nameSpan(id)}</b><div class="lv-slots">${[0,1,2].map(k=>`<span class="slot" data-k="${k}">${LIFE_ICON}</span>`).join('')}</div><span class="pct">0 lives</span><div class="dots">${'<i></i>'.repeat(QN)}</div></div>`};
+  return `<aside class="pads"><h3>${title||'Lives · 생명'}</h3><div class="lv-col">${pp(0)}${pp(1)}</div><p class="note">Each correct answer = +1 life. All wrong = game over before the maze. · 정답 1개 = 생명 1개, 모두 틀리면 게임 오버.</p></aside>`;
+}
+function ansOf(m,s){if(MV&&MV.side===s&&MV.q)return MV.q.ans;const d=D.quiz[qid(m.id,s?m.b:m.a)];return (d&&Array.isArray(d.ans))?d.ans:[]}
+const correctOf=(m,s)=>ansOf(m,s).filter(x=>x===1).length;
+function updatePads(m){
+  for(const s of [0,1]){
+    const el=$('#pp'+s);if(!el)continue;
+    const ans=ansOf(m,s),c=ans.filter(x=>x===1).length,prev=+el.dataset.c;
+    el.querySelectorAll('.slot').forEach((sl,k)=>{const on=k<c;if(on&&!sl.classList.contains('on')){sl.classList.add('on');if(prev>=0){sl.classList.remove('pop');void sl.offsetWidth;sl.classList.add('pop')}}else if(!on)sl.classList.remove('on','pop')});
+    el.dataset.c=c;
+    el.querySelector('.pct').textContent=`${c} ${c===1?'life':'lives'} · 생명 ${c}`;
+    el.querySelectorAll('.dots i').forEach((d,i)=>{d.className=i<ans.length?(ans[i]===1?'ok':'no'):''});
+  }
+}
+function settlePads(m){requestAnimationFrame(()=>requestAnimationFrame(()=>updatePads(m)))}
+
+/* ---------- quiz ---------- */
+function initQuiz(m){
+  const d=D.quiz[qid(m.id,C.uid)];
+  const ans=d&&Array.isArray(d.ans)?d.ans.slice(0,QN):[];
+  MV.q={qt:(m.qtime||20)*1000,qs:quizFor(m),ans:[...ans],idx:ans.length,state:ans.length>=QN?'finished':'active',locked:false,tick:0,adv:0};
+}
+function buildQuiz(){
+  const m=D.matches[MV.mid];
+  app.innerHTML=`<div class="mwrap">${mhead(m)}<div class="quiz"><section class="qcard" id="qbox"></section>${padsHTML(m)}</div></div>`;
+  settlePads(m);showQ();
+}
+function showQ(){
+  const q=MV.q,item=q.qs[q.idx];
+  q.locked=false;q.deadline=Date.now()+q.qt;
+  $('#qbox').innerHTML=`<div class="qtop"><span>Question ${q.idx+1} / ${QN} · ${UNITS[item.unit][2]} ${UNITS[item.unit][0]}</span><span class="tnum" id="tnum">${Math.round(q.qt/1000)}</span></div>
+    <div class="tbar" id="tbarw"><i id="tbar"></i></div>
+    <h3 class="prompt">${item.prompt}</h3><p class="prompt-ko">${item.ko}</p>
+    ${item.stage?`<div class="stage">${item.stage}</div>`:''}
+    <div class="qopts">${item.options.map((o,i)=>`<button class="qopt" data-i="${i}"><span class="k">${i+1}</span><span class="lab">${o}</span></button>`).join('')}</div>
+    <div class="fb" id="fb" hidden></div>`;
+  document.querySelectorAll('.qopt').forEach(b=>b.addEventListener('click',()=>answerQ(+b.dataset.i)));
+  clearInterval(q.tick);
+  const tickFn=()=>{if(!MV||MV.q!==q||q.locked)return;const rem=Math.max(0,q.deadline-Date.now());const tn=$('#tnum'),tb=$('#tbar'),tw=$('#tbarw');if(tn){tn.textContent=Math.ceil(rem/1000);tn.classList.toggle('low',rem<Math.min(5000,q.qt/3))}if(tb)tb.style.transform=`scaleX(${rem/q.qt})`;if(tw)tw.classList.toggle('low',rem<Math.min(5000,q.qt/3));if(rem<=0)answerQ(-1)};
+  tickFn();q.tick=setInterval(tickFn,100);
+}
+function answerQ(i){
+  const q=MV&&MV.q;if(!q||q.locked||q.state!=='active')return;
+  const item=q.qs[q.idx];if(i>=item.options.length)return;
+  q.locked=true;clearInterval(q.tick);
+  const ok=i===item.answer;q.ans.push(ok?1:0);
+  ok?sfx.good():sfx.bad();
+  document.querySelectorAll('.qopt').forEach((b,j)=>{b.disabled=true;if(j===item.answer)b.classList.add('right');else if(j===i)b.classList.add('wrong');else b.classList.add('dim')});
+  const m=D.matches[MV.mid];
+  writeDoc('quiz/'+qid(m.id,C.uid),{tid:m.tid,mid:m.id,uid:C.uid,ans:q.ans.slice(),correct:q.ans.filter(x=>x===1).length,done:q.ans.length>=QN,at:Date.now()});
+  updatePads(m);
+  const last=q.ans.length>=QN;
+  const fb=$('#fb');fb.hidden=false;
+  fb.innerHTML=`<p class="v ${ok?'ok':'no'}">${ok?`Correct! +1 life · 정답! 생명 +1`:i<0?'Time’s up · 시간 초과':'Not quite · 오답'}</p><p class="ex">${item.explain}</p><button class="btn primary" id="nextq">${last?'Done · 완료':'Next question · 다음 문제'} <kbd>Enter</kbd></button>`;
+  const go=()=>{clearTimeout(q.adv);if(!MV||MV.q!==q)return;if(last){q.state='finished';matchUpdate()}else{q.idx++;showQ()}};
+  $('#nextq').addEventListener('click',go);q.next=go;
+  q.adv=setTimeout(go,last?3200:3600);
+}
+document.addEventListener('keydown',e=>{
+  if(!MV||MV.screen!=='quiz'||!MV.q||e.metaKey||e.ctrlKey||e.altKey||e.repeat)return;
+  if(!MV.q.locked&&/^[1-4]$/.test(e.key)){e.preventDefault();answerQ(+e.key-1)}
+  else if(MV.q.locked&&(e.key==='Enter'||e.key===' ')&&MV.q.next){e.preventDefault();MV.q.next()}
+});
+
+/* ---------- waiting / watching quiz ---------- */
+function buildWait(){
+  const m=D.matches[MV.mid];
+  app.innerHTML=`<div class="mwrap">${mhead(m)}<div class="quiz"><section class="qcard waitbox" id="wbox"></section>${padsHTML(m,'Lives · 생명 비교')}</div></div>`;
+  settlePads(m);updateWaitText(m);
+}
+function updateWaitText(m){
+  const b=$('#wbox');if(!b)return;
+  const me=MV.side,opp=1-me,oppId=opp?m.b:m.a,oa=ansOf(m,opp).length,c=correctOf(m,me);
+  b.innerHTML=`<p class="eyebrow">Questions done · 문제 완료</p><h3>${c}/3 correct · ${c} ${c===1?'life':'lives'}</h3><p>Waiting for ${nameSpan(oppId)} to finish (${oa}/3 answered). · 상대가 문제를 다 풀면 미로 게임이 시작됩니다.</p><p class="note">If your opponent never shows up, your teacher can award the match. · 상대가 접속하지 않으면 선생님이 승자를 정할 수 있습니다.</p>`;
+}
+function buildWatchQuiz(){
+  const m=D.matches[MV.mid];
+  app.innerHTML=`<div class="mwrap">${mhead(m)}<div class="quiz"><section class="qcard waitbox"><p class="eyebrow">Question round · 문제 풀이 중</p><h3>Both players are answering 3 questions</h3><p class="muted">Every correct answer gives that player a life. The maze starts when both are done. · 둘 다 문제를 마치면 미로 게임이 시작됩니다.</p></section>${padsHTML(m)}</div>${switcherHTML()}</div>`;
+  wireBack();wireSwitcher();settlePads(m);
+}
+
+/* ---------- maze screen ---------- */
+const LIFE_ICON='<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" fill="#FF6A3D"/><circle cx="7" cy="7" r="2.8" fill="#FFB08A"/><rect x="6.2" y="10.4" width="7.6" height="2" fill="#fff"/><rect x="9" y="7.6" width="2" height="7.6" fill="#fff"/></svg>';
+const DPAD=`<div class="dpad" id="dpad"><button data-d="u" aria-label="Up">▲</button><button data-d="l" aria-label="Left">◀</button><button data-d="r" aria-label="Right">▶</button><button data-d="d" aria-label="Down">▼</button></div>`;
+function livesFor(m){const a=correctOf(m,0),b=correctOf(m,1),sudden=a===0&&b===0;return{a:sudden?1:a,b:sudden?1:b,sudden}}
+function scoreOf(m,s){const sc=m&&m.sc;if(!sc)return 0;return +(sc[s]||0)||0}
+/* The first player to lose all lives loses. A transaction makes sure only the first claim counts. */
+async function claimResult(mid,winnerUid,mySide,myScore,myLevel){
+  try{
+    const res=await R('matches/'+mid+'/w').transaction(cur=>cur?undefined:winnerUid);
+    const up={};
+    if(mySide===0||mySide===1){up['sc/'+mySide]=myScore|0;up['lv/'+mySide]=myLevel|0}
+    if(res&&res.committed){up.status='done';up.endedAt=Date.now()}
+    if(Object.keys(up).length)await R('matches/'+mid).update(up);
+  }catch(e){toast('Couldn’t save the result. Check the connection. · 결과를 저장하지 못했습니다.')}
+}
+function mzSound(k){
+  if(k==='dot'){mzSound.t=!mzSound.t;beep(mzSound.t?520:680,.03,'square',.045)}
+  else if(k==='power'){beep(220,.12,'sawtooth',.07);setTimeout(()=>beep(330,.12,'sawtooth',.07),110)}
+  else if(k==='eat'){beep(700,.06,'square',.08);setTimeout(()=>beep(1050,.08,'square',.08),60)}
+  else if(k==='die'){[660,560,470,390,320,260,200].forEach((f,i)=>setTimeout(()=>beep(f,.11,'triangle',.1),i*120))}
+  else if(k==='bonus'){beep(990,.08,'sine',.12);setTimeout(()=>beep(1320,.1,'sine',.12),80)}
+  else if(k==='life'||k==='clear'){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.1,'triangle',.1),i*100))}
+}
+function buildPong(){
+  const m=D.matches[MV.mid],side=MV.side,lv=livesFor(m);
+  const nm=s=>nameSpan(s?m.b:m.a);
+  const head=`${mhead(m,true)}<div class="pbar"><div class="pn L">${nm(0)}${side===0?' <span class="you">you</span>':''} <span class="you">♥ ${lv.a}</span></div><div class="pmid">${lv.sudden?'<span class="pill p">Sudden death · 1 life each</span>':'<span class="pill">Last one standing · 끝까지 살아남기</span>'}<button class="btn sm ghost" id="snd">${MUTED?'Sound off':'Sound on'}</button></div><div class="pn R"><span class="you">♥ ${lv.b}</span> ${side===1?'<span class="you">you</span> ':''}${nm(1)}</div></div>`;
+  if(side>=0){
+    app.innerHTML=`<div class="mwrap">${head}<div class="mz"><div class="mzmain"><canvas id="mzc" aria-label="Your maze"></canvas><div class="cvmsg" id="cvmsg"></div></div><aside class="mzside"><div class="mzopp"><p class="eyebrow">Opponent · 상대 화면</p><canvas id="mzo" aria-label="Opponent’s maze"></canvas><p class="oppinfo" id="oppinfo">…</p></div>${DPAD}</aside></div><p class="phint">Arrow keys / WASD, swipe on the maze, or tap the pad · 방향키, 화면 밀기, 버튼으로 방향 전환</p>${switcherHTML()}</div>`;
+  }else{
+    app.innerHTML=`<div class="mwrap">${head}<div class="mzwatch"><canvas id="mzw0" aria-label="Left player’s maze"></canvas><canvas id="mzw1" aria-label="Right player’s maze"></canvas></div>${switcherHTML()}</div>`;
+  }
+  wireBack();wireSwitcher();
+  $('#snd').addEventListener('click',e=>{MUTED=!MUTED;try{localStorage.setItem('pd-muted',MUTED?'1':'0')}catch(err){}e.currentTarget.textContent=MUTED?'Sound off':'Sound on'});
+  const my=MV;
+  if(!my.room){const cm=$('#cvmsg');if(cm)cm.innerHTML='<span>Live connection unavailable. Reload the page. · 실시간 연결을 할 수 없습니다.</span>';return}
+  my.room.watch(side>=0?[1-side]:[0,1]);
+  my.pong=createMazeView({mid:my.mid,a:m.a,b:m.b,side,room:my.room,lives:side>=0?(side?lv.b:lv.a):0,oppLives:side>=0?(side?lv.a:lv.b):0});
+}
+function createMazeView(o){
+  const {mid,a,b,side,room}=o;
+  let stopped=false,raf=0,last=performance.now(),acc=0,lastPub=0,done=false,game=null;
+  const t0=performance.now();
+  const mirrors=[MZ.Mirror(),MZ.Mirror()];
+  const fullDots=new Uint8Array(MZ.NDOT).fill(1);
+  if(side>=0){
+    if(o.lives>0)game=MZ.Game({lives:o.lives,sound:mzSound,onOver:(sc,lv)=>{if(!done){done=true;MV&&(MV.myFinal={sc,lv});claimResult(mid,side?a:b,side,sc,lv)}}});
+    else{done=true;claimResult(mid,side?a:b,side,0,0)}
+    if(o.oppLives===0&&o.lives>0)claimResult(mid,side?b:a,-1);
+  }
+  const ctxOf=cv=>cv?cv.getContext('2d'):null;
+  const me=$('#mzc'),opp=$('#mzo'),w0=$('#mzw0'),w1=$('#mzw1');
+  const cme=ctxOf(me),copp=ctxOf(opp),cw=[ctxOf(w0),ctxOf(w1)];
+  const msg=$('#cvmsg'),info=$('#oppinfo');
+  const mq=matchMedia('(max-width:860px), (orientation:portrait) and (max-width:1100px)');
+  function size(cv,w){if(!cv)return;w=Math.max(120,Math.floor(w));const h=Math.floor(w*MZ.H/MZ.W);cv.style.width=w+'px';cv.style.height=h+'px';const dpr=Math.min(2,window.devicePixelRatio||1);cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);const c=cv.getContext('2d');c.setTransform(cv.width/MZ.W,0,0,cv.height/MZ.H,0,0);c.imageSmoothingEnabled=false}
+  function fit(){
+    if(me){const box=me.parentElement;const top=Math.max(0,box.getBoundingClientRect().top);const reserve=mq.matches?260:24;
+      const availH=Math.max(260,window.innerHeight-top-reserve);size(me,Math.min(box.clientWidth,availH*MZ.W/MZ.H));
+      if(opp){const sw=opp.parentElement.clientWidth;size(opp,Math.min(sw,mq.matches?150:250))}}
+    if(w0){const box=w0.parentElement;const top=Math.max(0,box.getBoundingClientRect().top);const each=(box.clientWidth-16)/2;
+      const availH=Math.max(260,window.innerHeight-top-24);const w=Math.min(each,availH*MZ.W/MZ.H);size(w0,w);size(w1,w)}
+  }
+  function scan(){const out=[null,null];for(const p of room.peers()){if(p.isMe)continue;const pr=p.presence||{};const id=p.by||pr.uid;const s=id===a?0:id===b?1:-1;if(s<0||pr.side!==s)continue;out[s]=p}return out}
+  let lastInfo='';
+  function frame(ts){
+    if(stopped)return;raf=requestAnimationFrame(frame);
+    const dt=Math.min(.25,Math.max(0,(ts-last)/1000));last=ts;
+    const ps=scan(),sec=ts/1000;
+    if(side>=0){
+      const op=ps[1-side];
+      if(game){
+        if(game.phase==='wait'&&(op||ts-t0>6000))game.begin();
+        acc+=dt;while(acc>=1/60){game.update(1/60);acc-=1/60}
+        MZ.drawFrame(cme,game.view(),game.t,{msg:'WAITING...'});
+        if(ts-lastPub>100){lastPub=ts;room.presence({side,uid:C.uid,...game.net()}).catch(()=>{})}
+      }else{
+        MZ.drawFrame(cme,{st:'over',lv:1,sc:0,li:0,p:null,e:null,d:fullDots},sec);
+        if(ts-lastPub>1000){lastPub=ts;room.presence({side,uid:C.uid,st:'over',lv:1,sc:0,li:0,p:0,e:0,d:'',b:0}).catch(()=>{})}
+      }
+      if(op)mirrors[1-side].feed(op.presence);
+      mirrors[1-side].frame(copp,sec,dt,{msg:'WAITING...'});
+      const s=mirrors[1-side].state;
+      const txt=s?`${nameOf(side?a:b)} · LV ${s.lv|0} · ${s.sc|0} pts · ♥ ${s.li|0}`:`Waiting for ${nameOf(side?a:b)}… · 상대 접속 대기 중`;
+      if(txt!==lastInfo){lastInfo=txt;if(info)info.textContent=txt}
+      if(msg)msg.innerHTML=!game?'<span>No lives — game over · 생명이 없어 게임 오버</span>':'';
+    }else{
+      for(const s of [0,1]){if(ps[s])mirrors[s].feed(ps[s].presence);mirrors[s].frame(cw[s],sec,dt,{msg:'WAITING...'})}
+    }
+  }
+  /* controls: keys, swipe on the maze, and the on-screen pad */
+  const KEYS={arrowup:'u',w:'u',arrowleft:'l',a:'l',arrowdown:'d',s:'d',arrowright:'r',d:'r'};
+  const kd=e=>{if(!game)return;const d=KEYS[e.key.toLowerCase()];if(d){e.preventDefault();game.setDir(d)}};
+  let sw=null;
+  const pd=e=>{if(!game)return;e.preventDefault();ensureAudio();sw={x:e.clientX,y:e.clientY};try{me.setPointerCapture(e.pointerId)}catch(err){}};
+  const pm=e=>{if(!sw||!game)return;const dx=e.clientX-sw.x,dy=e.clientY-sw.y;if(Math.hypot(dx,dy)<18)return;game.setDir(Math.abs(dx)>Math.abs(dy)?(dx>0?'r':'l'):(dy>0?'d':'u'));sw={x:e.clientX,y:e.clientY}};
+  const pu=()=>{sw=null};
+  if(me&&game){me.addEventListener('pointerdown',pd);me.addEventListener('pointermove',pm);me.addEventListener('pointerup',pu);me.addEventListener('pointercancel',pu)}
+  document.querySelectorAll('#dpad button').forEach(btn=>{btn.addEventListener('pointerdown',e=>{e.preventDefault();ensureAudio();if(game)game.setDir(btn.dataset.d);btn.classList.add('held')});['pointerup','pointercancel','pointerleave'].forEach(t=>btn.addEventListener(t,()=>btn.classList.remove('held')));btn.addEventListener('contextmenu',e=>e.preventDefault())});
+  window.addEventListener('keydown',kd);window.addEventListener('resize',fit);
+  fit();setTimeout(fit,250);
+  if(document.fonts&&document.fonts.load)document.fonts.load('8px "Press Start 2P"').catch(()=>{});
+  raf=requestAnimationFrame(frame);
+  return{
+    finalize(){if(!done&&game&&side>=0){done=true;MV&&(MV.myFinal={sc:game.score,lv:game.level});R('matches/'+mid).update({['sc/'+side]:game.score,['lv/'+side]:game.level}).catch(()=>{})}},
+    stop(){stopped=true;cancelAnimationFrame(raf);window.removeEventListener('keydown',kd);window.removeEventListener('resize',fit);try{room.presence({g:null}).catch(()=>{})}catch(e){}}
+  };
+}
+
+/* ---------- result ---------- */
+function buildResult(){
+  const m=D.matches[MV.mid];MV.resultAt=Date.now();
+  const wSide=m.w===m.a?0:1,sc=[scoreOf(m,0),scoreOf(m,1)];
+  if(MV.myFinal&&MV.side>=0)sc[MV.side]=MV.myFinal.sc;
+  let msg='';
+  if(MV.side>=0){
+    const won=MV.side===wSide,hi=m.lo+m.n-1;
+    if(m.n===2)msg=won?`You finish in place ${m.lo}! · 최종 ${m.lo}위!`:`You finish in place ${hi}. Good game! · 최종 ${hi}위, 수고했어요!`;
+    else if(won)msg=`You win! Next you play for places ${m.lo}–${m.lo+Math.ceil(m.n/2)-1}. · 승리! 다음엔 ${m.lo}–${m.lo+Math.ceil(m.n/2)-1}위를 겨룹니다.`;
+    else if(rankOn(D.game))msg=`Good game. Next you play for places ${m.lo+Math.ceil(m.n/2)}–${hi}. · 수고했어요! 다음엔 ${m.lo+Math.ceil(m.n/2)}–${hi}위를 겨룹니다.`;
+    else msg='Good game. You can watch the remaining matches. · 수고했어요! 남은 경기를 관람할 수 있어요.';
+  }
+  if(MV.side===wSide)sfx.good();
+  app.innerHTML=`<div class="mwrap">${mhead(m)}<section class="panel result"><p class="eyebrow">${m.forfeit?'Awarded by teacher · 선생님 판정':'Last one standing · 최종'}</p><h2>${nameSpan(m.w)} wins</h2>${m.forfeit?'':`<div class="fscore"><span class="l">${sc[0]}</span> : <span class="r">${sc[1]}</span></div><p class="note">Maze score · 미로 점수</p>`}<p>${msg}</p><div class="acts"><button class="btn primary big" id="rhome">Back to bracket · 대진표로</button></div></section>${switcherHTML()}</div>`;
+  $('#rhome').addEventListener('click',goHome);wireBack();wireSwitcher();
+}
+
+/* ================= Proton Maze engine =================
+   An original maze and original characters, played by the classic 1980 maze-chase rules:
+   tile movement with cornering, electrons (dots) and catalysts (power items), four chasers with
+   different targeting (direct, ambush, flank, shy), scatter/chase waves, a frightened mode that
+   shortens each level, per-level speed tables, two bonus items per level, a bonus life at 10,000,
+   side tunnels that slow the chasers, and a speed-up for the lead chaser when few dots are left. */
+const MZ=(()=>{
+  const TS=8,COLS=28,ROWS=31,OY=24,W=224,H=288,BASE_SPD=75.75;
+  /* maze: corridors on the left half (mirrored); everything else is wall */
+  const HROW=[[1,1,13],[4,1,13],[8,0,9],[11,9,13],[14,3,9],[17,9,13],[20,0,9],[23,1,13],[26,1,5],[26,8,13],[29,1,13]];
+  const VCOL=[[1,1,4],[1,23,29],[3,4,20],[5,23,29],[6,1,4],[6,20,23],[8,23,26],[9,4,20],[11,26,29],[12,1,4]];
+  const TUN=[8,20];
+  const grid=Array.from({length:ROWS},()=>Array(COLS).fill('#'));
+  const put=(c,r,ch)=>{grid[r][c]=ch;grid[r][COLS-1-c]=ch};
+  for(const [r,a,b] of HROW)for(let c=a;c<=b;c++)put(c,r,'.');
+  for(const [c,a,b] of VCOL)for(let r=a;r<=b;r++)put(c,r,'.');
+  for(let r=13;r<=15;r++)for(let c=11;c<=16;c++)grid[r][c]='P';
+  grid[12][13]=grid[12][14]='-';
+  for(const r of TUN)for(let c=0;c<=2;c++)put(c,r,' ');
+  for(let c=9;c<=13;c++){put(c,11,' ');put(c,17,' ')}
+  for(let r=11;r<=17;r++)put(9,r,' ');
+  put(13,23,' ');
+  for(const [c,r] of [[1,2],[1,27]])put(c,r,'o');
+  const DOTS=[],DIDX=new Int16Array(COLS*ROWS).fill(-1);
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++)if(grid[r][c]==='.'||grid[r][c]==='o'){DIDX[r*COLS+c]=DOTS.length;DOTS.push([c,r,grid[r][c]==='o'])}
+  const NDOT=DOTS.length;
+  const tileAt=(c,r)=>{if(r<0||r>=ROWS)return '#';if(c<0||c>=COLS)return TUN.includes(r)?' ':'#';return grid[r][c]};
+  const blocked=(c,r)=>{const t=tileAt(c,r);return t==='#'||t==='-'||t==='P'};
+  const DIR={u:[0,-1],l:[-1,0],d:[0,1],r:[1,0]},ORDER=['u','l','d','r'],OPP={u:'d',d:'u',l:'r',r:'l'},DI={u:0,l:1,d:2,r:3},ID=['u','l','d','r'];
+  const SCATTER=[[25,-3],[2,-3],[27,31],[0,31]];
+  const COLORS=['#FF4D6D','#FFD23F','#3DDC84','#B36BFF'];   /* F, Cl, Br, I radicals */
+  const LABELS=['F','Cl','Br','I'];
+  const FR=[6,5,4,3,2,5,2,2,1,5,2,1,1,3,1,1,0,1];
+  const BON=[['tube',100],['beaker',300],['flask',500],['flask',500],['magnet',700],['magnet',700],['scope',1000],['scope',1000],['battery',2000],['battery',2000],['atom',3000],['atom',3000]];
+  function lvl(n){
+    const L=Math.max(1,n);
+    const sp=L===1?{p:.8,pf:.9,e:.75,ef:.5,et:.4}:L<=4?{p:.9,pf:.95,e:.85,ef:.55,et:.45}:L<=20?{p:1,pf:1,e:.95,ef:.6,et:.5}:{p:.9,pf:.9,e:.95,ef:.95,et:.5};
+    const fr=L<=FR.length?FR[L-1]:0;
+    return{sp,fr,flashes:fr<=1?3:5,
+      modes:L===1?[7,20,7,20,5,20,5,1e9]:L<=4?[7,20,7,20,5,1033,1/60,1e9]:[5,20,5,20,5,1037,1/60,1e9],
+      elroy:L===1?20:L===2?30:L<=5?40:L<=8?50:L<=11?60:L<=14?80:L<=18?100:120,
+      bonus:L<=BON.length?BON[L-1]:['medal',5000],
+      release:L===1?[0,0,30,60]:L===2?[0,0,0,50]:[0,0,0,0],idle:L<5?4:3};
+  }
+  /* ---------- drawing helpers (shared by the player view and the mirror views) ---------- */
+  function wallLayer(flash){
+    const cv=document.createElement('canvas');cv.width=W;cv.height=ROWS*TS;const x=cv.getContext('2d');
+    const fill=flash?'#E9F4FF':'#123F52',edge=flash?'#FFFFFF':'#47F0DA';
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      if(grid[r][c]!=='#')continue;
+      x.fillStyle=fill;x.fillRect(c*TS,r*TS,TS,TS);
+      x.fillStyle=edge;
+      const op=(cc,rr)=>{if(rr<0||rr>=ROWS||cc<0||cc>=COLS)return false;return grid[rr][cc]!=='#'};
+      if(op(c,r-1))x.fillRect(c*TS,r*TS,TS,1);
+      if(op(c,r+1))x.fillRect(c*TS,r*TS+TS-1,TS,1);
+      if(op(c-1,r))x.fillRect(c*TS,r*TS,1,TS);
+      if(op(c+1,r))x.fillRect(c*TS+TS-1,r*TS,1,TS);
+    }
+    x.fillStyle='#FF9BD5';x.fillRect(13*TS,12*TS+3,2*TS,2);
+    return cv;
+  }
+  let LAYERS=null;const layers=()=>LAYERS||(LAYERS=[wallLayer(false),wallLayer(true)]);
+  function proton(x,y,dir,s,alpha){
+    x=x;y=y+OY;const r=6.5*s;if(r<=.2)return;
+    const ctx=this;ctx.save();ctx.globalAlpha=alpha==null?1:alpha;
+    ctx.fillStyle='#FF6A3D';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+    ctx.fillStyle='#FFB08A';ctx.beginPath();ctx.arc(x-r*.35,y-r*.35,r*.35,0,7);ctx.fill();
+    ctx.fillStyle='#FFFFFF';ctx.fillRect(x-2.5*s,y+1.2*s-.6*s,5*s,1.4*s);ctx.fillRect(x-.7*s,y+1.2*s-2.5*s+.1,1.4*s,5*s);
+    const [dx,dy]=DIR[dir]||[0,0];const ex=dx*2*s,ey=dy*1.5*s-2.4*s;
+    for(const sx of [-2.2,2.2]){ctx.fillStyle='#FFFFFF';ctx.fillRect(x+sx*s+ex-1*s,y+ey-1*s,2*s,2*s);ctx.fillStyle='#2B0B05';ctx.fillRect(x+sx*s+ex+dx*.6*s-.5*s,y+ey+dy*.6*s-.5*s,1*s,1*s)}
+    ctx.restore();
+  }
+  function radical(i,x,y,dir,code,t,s){
+    const ctx=this;y+=OY;s=s||1;
+    const eyesOnly=code===3,fr=code===1||code===2;
+    if(code===4)return;
+    const r=6.6*s;
+    if(!eyesOnly){
+      const flashOn=code===2&&Math.floor(t*5)%2===0;
+      ctx.fillStyle=fr?(flashOn?'#F4F4F8':'#5D6B8F'):COLORS[i];
+      ctx.beginPath();for(let k=0;k<6;k++){const a=Math.PI/3*k+Math.PI/6;const px=x+Math.cos(a)*r,py=y+Math.sin(a)*r;k?ctx.lineTo(px,py):ctx.moveTo(px,py)}ctx.closePath();ctx.fill();
+      ctx.fillStyle=fr?(flashOn?'#E0244A':'#F4F4F8'):'#FFFFFF';
+      const sp=Math.sin(t*10+i)>0?1:0;ctx.beginPath();ctx.arc(x+(sp?1:-1)*1.5*s,y-r-1.5*s,1.1*s,0,7);ctx.fill();
+      if(fr){ctx.fillStyle=flashOn?'#E0244A':'#F4F4F8';for(let k=0;k<4;k++)ctx.fillRect(x-3.5*s+k*2*s,y+2.2*s+(k%2)*s,1.2*s,1*s);
+        ctx.fillRect(x-2.6*s,y-2*s,1.4*s,1.4*s);ctx.fillRect(x+1.2*s,y-2*s,1.4*s,1.4*s);return}
+    }
+    const [dx,dy]=DIR[dir]||[0,0];
+    for(const sx of [-2.4,2.4]){ctx.fillStyle='#FFFFFF';ctx.beginPath();ctx.ellipse(x+sx*s+dx*.8*s,y-1.2*s+dy*.8*s,1.7*s,2.1*s,0,0,7);ctx.fill();
+      ctx.fillStyle='#1B2A6B';ctx.fillRect(x+sx*s+dx*1.6*s-.8*s,y-1.2*s+dy*1.6*s-.8*s,1.6*s,1.6*s)}
+  }
+  function bonusIcon(kind,x,y,s){
+    const ctx=this;y+=OY;s=s||1;ctx.save();ctx.translate(x,y);ctx.scale(s,s);
+    const R=(c,a,b,w,h)=>{ctx.fillStyle=c;ctx.fillRect(a,b,w,h)};
+    if(kind==='tube'){R('#CFE8FF',-1.5,-6,3,10);R('#FF5C8A',-1.5,0,3,4);R('#FFFFFF',-2.5,-6,5,1)}
+    else if(kind==='beaker'){R('#CFE8FF',-4,-5,8,10);R('#3DE0CB',-4,0,8,5);R('#FFFFFF',-5,-5,2,1)}
+    else if(kind==='flask'){R('#CFE8FF',-1.5,-6,3,4);ctx.fillStyle='#CFE8FF';ctx.beginPath();ctx.moveTo(-1.5,-2);ctx.lineTo(-5,5);ctx.lineTo(5,5);ctx.lineTo(1.5,-2);ctx.fill();ctx.fillStyle='#B36BFF';ctx.beginPath();ctx.moveTo(-3.3,2);ctx.lineTo(-5,5);ctx.lineTo(5,5);ctx.lineTo(3.3,2);ctx.fill()}
+    else if(kind==='magnet'){R('#E0244A',-5,-5,3,8);R('#E0244A',2,-5,3,8);R('#E0244A',-5,1,10,3);R('#FFFFFF',-5,-5,3,2);R('#FFFFFF',2,-5,3,2)}
+    else if(kind==='scope'){R('#9AA7C7',-1,-6,3,7);R('#9AA7C7',-4,3,9,2);R('#9AA7C7',2,-1,2,4);R('#3DE0CB',-1,-6,3,2)}
+    else if(kind==='battery'){R('#FFD23F',-3,-4,6,9);R('#3A3A3A',-3,1,6,4);R('#CFCFCF',-1,-6,2,2)}
+    else if(kind==='atom'){ctx.strokeStyle='#7FD8FF';ctx.lineWidth=1;for(const a of [0,1.05,2.1]){ctx.beginPath();ctx.ellipse(0,0,6,2.3,a,0,7);ctx.stroke()}R('#FF6A3D',-1.5,-1.5,3,3)}
+    else{ctx.fillStyle='#FFD23F';ctx.beginPath();ctx.arc(0,1,4.5,0,7);ctx.fill();R('#E0244A',-3,-6,2,4);R('#3D8BFF',1,-6,2,4)}
+    ctx.restore();
+  }
+  function hud(ctx,o){
+    ctx.fillStyle='#FFFFFF';ctx.font='8px "Press Start 2P", ui-monospace, monospace';ctx.textBaseline='top';
+    ctx.textAlign='left';ctx.fillText('SCORE',8,2);ctx.fillText(String(o.sc|0).padStart(6,' '),8,12);
+    ctx.textAlign='right';ctx.fillText('LEVEL',W-8,2);ctx.fillText(String(o.lv|0),W-8,12);
+    const ly=OY+ROWS*TS+8;
+    for(let k=0;k<Math.min(o.li|0,7);k++)proton.call(ctx,14+k*14,ly-OY+4,'r',.62);
+    ctx.textAlign='left';
+  }
+  function drawFrame(ctx,st,t,opt){
+    /* st: {st,lv,sc,li,p:[x,y,dir,die],e:[[x,y,code,dir]...],d:dotsBits(Uint8Array),b,bk,fl,pop} */
+    ctx.fillStyle='#050816';ctx.fillRect(0,0,W,H);
+    const L=layers();const flash=st.st==='clear'&&Math.floor(t*4)%2===1;
+    ctx.drawImage(L[flash?1:0],0,OY);
+    const blink=Math.floor(t*5)%2===0||st.st!=='play';
+    for(let k=0;k<NDOT;k++){if(!st.d[k])continue;const [c,r,pw]=DOTS[k];
+      if(pw){if(!blink)continue;ctx.fillStyle='#FF5CC8';ctx.beginPath();ctx.arc(c*TS+4,OY+r*TS+4,3.4,0,7);ctx.fill();ctx.fillStyle='#FFD6F2';ctx.fillRect(c*TS+3,OY+r*TS+2.5,1.5,1.5)}
+      else{ctx.fillStyle='#9FE6FF';ctx.fillRect(c*TS+3,OY+r*TS+3,2,2)}}
+    if(st.b&&st.bk)bonusIcon.call(ctx,st.bk,112,17*TS+4,1);
+    const showE=st.st==='play'||st.st==='ready'||(st.st==='dying'&&(st.p[3]||0)<.35);
+    if(showE&&st.e)st.e.forEach((e,i)=>radical.call(ctx,i,e[0],e[1],ID[e[3]]||'l',e[2],t,1));
+    if(st.p&&st.st!=='over'){const die=st.p[3]||0;
+      if(st.st==='dying'&&die>.35){const k=(die-.35)/.65;proton.call(ctx,st.p[0],st.p[1],ID[st.p[2]],Math.max(0,1-k),1-k*.6);
+        ctx.fillStyle='#FFD23F';for(let a=0;a<8;a++){const ang=a*Math.PI/4,d=4+k*10;ctx.fillRect(st.p[0]+Math.cos(ang)*d-.5,OY+st.p[1]+Math.sin(ang)*d-.5,1.5,1.5)}}
+      else proton.call(ctx,st.p[0],st.p[1],ID[st.p[2]],1)}
+    if(st.pop){ctx.fillStyle='#7FF3FF';ctx.font='6px "Press Start 2P", ui-monospace, monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(st.pop[2]),st.pop[0],OY+st.pop[1])}
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='8px "Press Start 2P", ui-monospace, monospace';
+    if(st.st==='ready'){ctx.fillStyle='#FFE45C';ctx.fillText(opt&&opt.msg||'GET READY!',112,OY+17*TS+4)}
+    if(st.st==='wait'){ctx.fillStyle='#9FE6FF';ctx.fillText(opt&&opt.msg||'WAITING...',112,OY+17*TS+4)}
+    if(st.st==='over'){ctx.fillStyle='#FF4D6D';ctx.fillText('GAME  OVER',112,OY+17*TS+4)}
+    hud(ctx,st);
+  }
+  const hex=bits=>{let s='';for(let k=0;k<bits.length;k+=4){let v=0;for(let j=0;j<4;j++)v|=(bits[k+j]?1:0)<<j;s+=v.toString(16)}return s};
+  const unhex=s=>{const b=new Uint8Array(NDOT);if(typeof s!=='string')return b.fill(1);for(let k=0;k<NDOT;k++){const v=parseInt(s[k>>2]||'0',16);b[k]=(v>>(k&3))&1}return b};
+
+  /* ---------- the game ---------- */
+  function Game(opts){
+    const lives0=opts.lives;
+    let level=1,score=0,lives=lives0,extra=false,phase='wait',phaseT=0,t=0;
+    const dots=new Uint8Array(NDOT);let left=0,eaten=0;
+    let pl,en,modeIdx=0,modeT=0,frOn=false,frT=0,combo=0,bonusT=0,pauseT=0,pop=null,popT=0,idleT=0,useGlobal=false,gCnt=0,cnt=[0,0,0,0];
+    let P=lvl(1);
+    function resetLevel(){P=lvl(level);dots.fill(1);left=NDOT;eaten=0;useGlobal=false;gCnt=0;cnt=[0,0,0,0];resetPos()}
+    function resetPos(){
+      pl={x:112,y:23*TS+4,dir:'l',next:'l',stopped:false};
+      en=[{i:0,x:112,y:11*TS+4,dir:'l',state:'roam'},{i:1,x:112,y:14*TS+4,dir:'d',state:'pen'},{i:2,x:96,y:14*TS+4,dir:'u',state:'pen'},{i:3,x:128,y:14*TS+4,dir:'u',state:'pen'}].map(e=>({...e,fright:false,dec:null}));
+      modeIdx=0;modeT=0;frOn=false;frT=0;bonusT=0;pauseT=0;pop=null;idleT=0;
+    }
+    resetLevel();
+    const tileOf=o=>[Math.floor(o.x/TS),Math.floor(o.y/TS)];
+    function setDir(d){if(DIR[d])pl.next=d}
+    function begin(){if(phase==='wait'){phase='ready';phaseT=2.6}}
+    function stepPlayer(s){
+      const [c,r]=tileOf(pl),cx=c*TS+4,cy=r*TS+4;
+      if(pl.next===OPP[pl.dir]){pl.dir=pl.next;pl.stopped=false}
+      if(pl.next!==pl.dir){
+        const off=(pl.dir==='l'||pl.dir==='r')?Math.abs(pl.x-cx):Math.abs(pl.y-cy);
+        const [nx,ny]=DIR[pl.next];
+        if((off<=3||pl.stopped)&&!blocked(c+nx,r+ny)){pl.x=cx;pl.y=cy;pl.dir=pl.next;pl.stopped=false}
+      }
+      const [dx,dy]=DIR[pl.dir];
+      const toC=dx?(cx-pl.x)*dx:(cy-pl.y)*dy;
+      if(blocked(c+dx,r+dy)&&toC<=s){pl.x=cx;pl.y=cy;pl.stopped=true;return}
+      pl.x+=dx*s;pl.y+=dy*s;pl.stopped=false;
+      if(dx)pl.y=cy;else pl.x=cx;
+      if(pl.x<-8)pl.x+=W+16;else if(pl.x>W+8)pl.x-=W+16;
+    }
+    function target(e){
+      if(e.state==='eaten')return[13,11];
+      const [pc,pr]=tileOf(pl),[dx,dy]=DIR[pl.dir];
+      const elroy=e.i===0&&left<=P.elroy&&en[3].state!=='pen';
+      if(modeIdx%2===0&&!elroy)return SCATTER[e.i];
+      if(e.i===0)return[pc,pr];
+      if(e.i===1)return[pc+4*dx,pr+4*dy];
+      if(e.i===2){const [bc,br]=tileOf(en[0]);return[2*(pc+2*dx)-bc,2*(pr+2*dy)-br]}
+      const [ec,er]=tileOf(e);return((ec-pc)**2+(er-pr)**2>64)?[pc,pr]:SCATTER[3];
+    }
+    function choose(e,c,r){
+      let opts=ORDER.filter(d=>d!==OPP[e.dir]&&!blocked(c+DIR[d][0],r+DIR[d][1]));
+      if(!opts.length)opts=[OPP[e.dir]];
+      if(e.fright&&e.state==='roam')return opts[Math.floor(Math.random()*opts.length)];
+      const tg=target(e);let best=opts[0],bd=Infinity;
+      for(const d of opts){const dd=(c+DIR[d][0]-tg[0])**2+(r+DIR[d][1]-tg[1])**2;if(dd<bd){bd=dd;best=d}}
+      return best;
+    }
+    function inTunnel(e){const [c,r]=tileOf(e);return TUN.includes(r)&&(c<=2||c>=25)}
+    function eSpeed(e){
+      let p;
+      if(e.state==='eaten'||e.state==='enter')p=1.6;
+      else if(e.state==='pen'||e.state==='exit')p=.45;
+      else if(inTunnel(e))p=P.sp.et;
+      else if(e.fright)p=P.sp.ef;
+      else{p=P.sp.e;if(e.i===0&&en[3].state!=='pen'){if(left<=P.elroy/2)p+=.1;else if(left<=P.elroy)p+=.05}}
+      return p*BASE_SPD;
+    }
+    function stepEnemy(e,s){
+      if(e.state==='pen'){e.y+=(e.dir==='u'?-s:s)*.6;if(e.y<=14*TS+1)e.dir='d';if(e.y>=14*TS+7)e.dir='u';return}
+      if(e.state==='exit'){
+        if(Math.abs(e.x-112)>.01){const d=Math.min(s,Math.abs(112-e.x));e.dir=e.x<112?'r':'l';e.x+=Math.sign(112-e.x)*d;return}
+        if(Math.abs(e.y-(14*TS+4))>.01&&e.y>14*TS+4){e.y=Math.max(14*TS+4,e.y-s);e.dir='u';return}
+        e.dir='u';e.y-=s;if(e.y<=11*TS+4){e.y=11*TS+4;e.state='roam';e.dir='l';e.dec=null}return}
+      if(e.state==='enter'){
+        if(Math.abs(e.x-112)>.01){const d=Math.min(s,Math.abs(112-e.x));e.x+=Math.sign(112-e.x)*d;return}
+        e.dir='d';e.y+=s;if(e.y>=14*TS+4){e.y=14*TS+4;e.state='exit';e.fright=false}return}
+      const [c,r]=tileOf(e),cx=c*TS+4,cy=r*TS+4,[dx,dy]=DIR[e.dir];
+      const toC=dx?(cx-e.x)*dx:(cy-e.y)*dy,key=c+','+r;
+      if(toC>=0&&toC<=s&&e.dec!==key){
+        e.x=cx;e.y=cy;e.dec=key;
+        if(e.state==='eaten'&&r===11&&(c===13||c===14)){e.state='enter';return}
+        e.dir=choose(e,c,r);const rem=s-toC,[nx,ny]=DIR[e.dir];e.x+=nx*rem;e.y+=ny*rem;
+      }else{e.x+=dx*s;e.y+=dy*s}
+      if(e.x<-8)e.x+=W+16;else if(e.x>W+8)e.x-=W+16;
+    }
+    function reverseAll(){for(const e of en)if(e.state==='roam'){e.dir=OPP[e.dir];e.dec=null}}
+    function release(i){if(en[i].state==='pen'){en[i].state='exit'}idleT=0}
+    function releaseLogic(dt){
+      idleT+=dt;
+      const nx=[1,2,3].find(i=>en[i].state==='pen');if(nx===undefined)return;
+      if(useGlobal){if(gCnt>=[0,7,17,32][nx])release(nx)}
+      else if(cnt[nx]>=P.release[nx])release(nx);
+      if(idleT>=P.idle)release(nx);
+    }
+    function startFright(){
+      combo=0;reverseAll();
+      if(P.fr<=0)return;
+      frOn=true;frT=P.fr;for(const e of en)if(e.state!=='eaten'&&e.state!=='enter')e.fright=true;
+      opts.sound&&opts.sound('power');
+    }
+    function eatDot(){
+      const [c,r]=tileOf(pl);if(c<0||c>=COLS)return;
+      const k=DIDX[r*COLS+c];if(k<0||!dots[k])return;
+      dots[k]=0;left--;eaten++;idleT=0;
+      const nx=[1,2,3].find(i=>en[i].state==='pen');if(nx!==undefined)cnt[nx]++;if(useGlobal)gCnt++;
+      if(DOTS[k][2]){score+=50;startFright()}else{score+=10;opts.sound&&opts.sound('dot')}
+      if(eaten===70||eaten===170)bonusT=9.5;
+      if(left===0){phase='clear';phaseT=2.4;opts.sound&&opts.sound('clear')}
+    }
+    function collide(){
+      const [pc,pr]=tileOf(pl);
+      for(const e of en){
+        if(e.state!=='roam'&&!(e.state==='exit'&&e.y<12*TS))continue;
+        const [ec,er]=tileOf(e);
+        if((ec===pc&&er===pr)||Math.hypot(e.x-pl.x,e.y-pl.y)<6){
+          if(e.fright){e.fright=false;e.state='eaten';e.dec=null;const pts=[200,400,800,1600][Math.min(combo,3)];combo++;score+=pts;pop=[e.x,e.y,pts];popT=1;pauseT=.6;opts.sound&&opts.sound('eat')}
+          else if(e.state==='roam'||e.state==='exit'){phase='dying';phaseT=1.8;opts.sound&&opts.sound('die');return}
+        }
+      }
+      if(bonusT>0&&pr===17&&(pc===13||pc===14)){score+=P.bonus[1];pop=[112,17*TS+4,P.bonus[1]];popT=1.5;bonusT=0;opts.sound&&opts.sound('bonus')}
+    }
+    function update(dt){
+      t+=dt;if(popT>0){popT-=dt;if(popT<=0)pop=null}
+      if(phase==='wait'||phase==='over')return;
+      if(phase==='ready'){phaseT-=dt;if(phaseT<=0)phase='play';return}
+      if(phase==='dying'){phaseT-=dt;if(phaseT<=0){lives--;if(lives<=0){lives=0;phase='over';opts.onOver&&opts.onOver(score,level)}else{resetPos();useGlobal=true;gCnt=0;phase='ready';phaseT=1.8}}return}
+      if(phase==='clear'){phaseT-=dt;if(phaseT<=0){level++;resetLevel();phase='ready';phaseT=2}return}
+      if(pauseT>0){pauseT-=dt;return}
+      if(frOn){frT-=dt;if(frT<=0){frOn=false;for(const e of en)e.fright=false}}
+      else{modeT+=dt;if(modeT>=P.modes[modeIdx]){modeT=0;modeIdx=Math.min(modeIdx+1,P.modes.length-1);reverseAll()}}
+      releaseLogic(dt);
+      let d=(frOn?P.sp.pf:P.sp.p)*BASE_SPD*dt;while(d>0){const s=Math.min(d,1);d-=s;stepPlayer(s)}
+      eatDot();if(phase!=='play')return;
+      collide();if(phase!=='play')return;
+      for(const e of en){let m=eSpeed(e)*dt;while(m>0){const s=Math.min(m,1);m-=s;stepEnemy(e,s)}}
+      collide();
+      if(bonusT>0)bonusT-=dt;
+      if(!extra&&score>=10000){extra=true;lives++;opts.sound&&opts.sound('life')}
+    }
+    function ecode(e){if(e.state==='eaten'||e.state==='enter')return 3;if(e.fright)return frT<P.flashes*.4?2:1;return 0}
+    function view(){return{st:phase,lv:level,sc:score,li:lives,p:[pl.x,pl.y,DI[pl.dir],phase==='dying'?1-phaseT/1.8:0],e:en.map(e=>[e.x,e.y,ecode(e),DI[e.dir]]),d:dots,b:bonusT>0?1:0,bk:P.bonus[0],pop:pause()?pop:pop}}
+    const pause=()=>pauseT>0;
+    function net(){const r=v=>Math.round(v*10)/10;return{st:phase,lv:level,sc:score,li:lives,p:[r(pl.x),r(pl.y),DI[pl.dir],phase==='dying'?Math.round((1-phaseT/1.8)*100)/100:0],e:en.map(e=>[r(e.x),r(e.y),ecode(e),DI[e.dir]]),d:hex(dots),b:bonusT>0?1:0,bk:P.bonus[0],pop:pop?[r(pop[0]),r(pop[1]),pop[2]]:0}}
+    return{update,view,net,setDir,begin,get phase(){return phase},get score(){return score},get level(){return level},get t(){return t}};
+  }
+
+  /* mirror of a remote game: draws the latest network state, smoothing the movers */
+  function Mirror(){
+    let st=null,shown=null,dotsStr=null,dotsBits=new Uint8Array(NDOT).fill(1);
+    function feed(s){if(!s||typeof s!=='object')return;st=s;if(s.d!==dotsStr){dotsStr=s.d;dotsBits=unhex(s.d)}}
+    function frame(ctx,t,dt,opt){
+      if(!st){drawFrame(ctx,{st:'wait',lv:1,sc:0,li:0,p:null,e:null,d:dotsBits},t,opt);return}
+      const k=1-Math.exp(-dt/0.07);
+      const lerp=(a,b)=>Math.abs(b-a)>24?b:a+(b-a)*k;
+      if(!shown)shown={p:[...(st.p||[0,0,1,0])],e:(st.e||[]).map(x=>[...x])};
+      if(Array.isArray(st.p)){shown.p[0]=lerp(shown.p[0],st.p[0]);shown.p[1]=lerp(shown.p[1],st.p[1]);shown.p[2]=st.p[2];shown.p[3]=st.p[3]}
+      if(Array.isArray(st.e))st.e.forEach((e,i)=>{const s=shown.e[i]||(shown.e[i]=[...e]);s[0]=lerp(s[0],e[0]);s[1]=lerp(s[1],e[1]);s[2]=e[2];s[3]=e[3]});
+      drawFrame(ctx,{...st,p:shown.p,e:shown.e,d:dotsBits},t,opt);
+    }
+    return{feed,frame,get state(){return st}};
+  }
+  return{Game,Mirror,drawFrame,W,H,NDOT,grid,DOTS};
+})();
+
+boot();
+</script>
+</body>
+</html>
+

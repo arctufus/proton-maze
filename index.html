@@ -274,6 +274,8 @@ details.how[open] summary{margin-bottom:12px}
 #cv{display:block;background:var(--field);border-radius:4px;touch-action:none;user-select:none;-webkit-user-select:none;max-width:100%}
 .cvmsg{position:absolute;inset:0;display:grid;place-items:center;color:var(--fieldInk);font-family:var(--mono);font-size:17px;text-align:center;padding:24px;pointer-events:none}
 .cvmsg:empty{display:none}
+.cvmsg.low{place-items:end center;padding-bottom:9%}
+.cvmsg.low span{font-size:14px;max-width:min(88%,440px);line-height:1.45}
 .cvmsg span{background:var(--field);padding:6px 12px}
 .ctrl{display:flex;flex-direction:column;gap:12px}
 .arrow{width:clamp(88px,11vw,130px);height:clamp(110px,24vh,210px);border-radius:18px;border:2px solid var(--line);background:var(--surface);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;display:grid;place-items:center;padding:0}
@@ -854,7 +856,7 @@ function howCard(open){
     <li>Open the class link in Chrome or Safari, sign in with ${SCHOOL_DOMAIN?'your school':'your'} Google account and tap <b>Join</b>.<span>크롬이나 사파리로 링크를 열고 ${SCHOOL_DOMAIN?'학교 ':''}구글 계정으로 로그인한 뒤 참가하기를 누릅니다.</span></li>
     <li>Each match starts with the same 3 questions for both players, ${gQt()} seconds each.<span>두 사람이 같은 문제 3개를 풉니다. 문제당 ${gQt()}초.</span></li>
     <li>Every correct answer gives you one life (up to 3). Get all 3 wrong and it’s game over before the maze starts. If both players get all wrong, both play with 1 life.<span>정답 1개 = 생명 1개(최대 3). 모두 틀리면 미로 게임을 해 보지도 못하고 게임 오버. 둘 다 모두 틀리면 둘 다 생명 1개로 대결.</span></li>
-    <li>Then both players play the maze at the same time. Eat every electron to clear a level; each level gets faster and harder. Catalysts let you catch the radicals for a short time. The first player to lose all lives loses the match.<span>두 사람이 동시에 미로를 플레이합니다. 전자를 모두 먹으면 다음 레벨(점점 빨라지고 어려워짐). 촉매를 먹으면 잠시 라디칼을 잡을 수 있어요. 생명을 먼저 다 잃는 사람이 집니다.</span></li>
+    <li>Then both players play the maze at the same time. Eat every electron to clear a level; each level gets faster and harder. If you clear a level first, you wait until your opponent clears it too, then you both start the next level together. Catalysts let you catch the radicals for a short time. The first player to lose all lives loses the match.<span>두 사람이 동시에 미로를 플레이합니다. 전자를 모두 먹으면 다음 레벨(점점 빨라지고 어려워짐). 먼저 레벨을 깨면 상대가 그 레벨을 깰 때까지 기다렸다가 함께 다음 레벨을 시작합니다. 촉매를 먹으면 잠시 라디칼을 잡을 수 있어요. 생명을 먼저 다 잃는 사람이 집니다.</span></li>
     <li>Move with the arrow keys, swipe on the maze, or tap the on-screen pad. You can watch your opponent’s maze live beside yours.<span>방향키, 화면 밀기, 화면 버튼으로 움직입니다. 옆에서 상대 화면이 실시간으로 보입니다.</span></li>
     ${rankOn(D.game)?`<li>Ranking matches: winners play winners for the higher places and losers play losers for the lower places, until every player has a final place.<span>순위결정전: 이긴 사람끼리 윗순위를, 진 사람끼리 아랫순위를 겨뤄 모든 학생의 최종 순위가 정해집니다.</span></li>`:`<li>Winners move on. Lose once and you’re out.<span>이긴 사람이 다음 라운드로, 지면 탈락입니다.</span></li>`}
     <li>With an odd number of players in a group, one player gets a bye and watches a live match.<span>인원이 홀수면 1명이 부전승으로 올라가고 다른 경기를 관람합니다.</span></li>
@@ -1207,12 +1209,12 @@ function buildPong(){
 }
 function createMazeView(o){
   const {mid,a,b,side,room}=o;
-  let stopped=false,raf=0,last=performance.now(),acc=0,lastPub=0,done=false,game=null;
+  let stopped=false,raf=0,last=performance.now(),acc=0,lastPub=0,done=false,game=null,holdMiss=0;
   const t0=performance.now();
   const mirrors=[MZ.Mirror(),MZ.Mirror()];
   const fullDots=new Uint8Array(MZ.NDOT).fill(1);
   if(side>=0){
-    if(o.lives>0)game=MZ.Game({lives:o.lives,sound:mzSound,onOver:(sc,lv)=>{if(!done){done=true;MV&&(MV.myFinal={sc,lv});claimResult(mid,side?a:b,side,sc,lv)}}});
+    if(o.lives>0)game=MZ.Game({lives:o.lives,gate:true,sound:mzSound,onOver:(sc,lv)=>{if(!done){done=true;MV&&(MV.myFinal={sc,lv});claimResult(mid,side?a:b,side,sc,lv)}}});
     else{done=true;claimResult(mid,side?a:b,side,0,0)}
     if(o.oppLives===0&&o.lives>0)claimResult(mid,side?b:a,-1);
   }
@@ -1239,6 +1241,13 @@ function createMazeView(o){
       const op=ps[1-side];
       if(game){
         if(game.phase==='wait'&&(op||ts-t0>6000))game.begin();
+        if(game.phase==='hold'){
+          /* go on when the opponent has also cleared this level (or is already past it, or is out);
+             if the opponent is gone or frozen for a while, go on alone so nobody is stuck */
+          const os=op&&Date.now()-(op.updatedAt||0)<10000?op.presence:null;
+          if(os){holdMiss=0;const ol=os.lv|0;if(os.st==='over'||ol>game.level||(ol===game.level&&os.st==='hold'))game.advance()}
+          else if((holdMiss+=dt)>8)game.advance();
+        }else holdMiss=0;
         acc+=dt;while(acc>=1/60){game.update(1/60);acc-=1/60}
         MZ.drawFrame(cme,game.view(),game.t,{msg:'WAITING...'});
         if(ts-lastPub>100){lastPub=ts;room.presence({side,uid:C.uid,...game.net()}).catch(()=>{})}
@@ -1251,7 +1260,9 @@ function createMazeView(o){
       const s=mirrors[1-side].state;
       const txt=s?`${nameOf(side?a:b)} · LV ${s.lv|0} · ${s.sc|0} pts · ♥ ${s.li|0}`:`Waiting for ${nameOf(side?a:b)}… · 상대 접속 대기 중`;
       if(txt!==lastInfo){lastInfo=txt;if(info)info.textContent=txt}
-      if(msg)msg.innerHTML=!game?'<span>No lives — game over · 생명이 없어 게임 오버</span>':'';
+      const hold=!!game&&game.phase==='hold';
+      const want=!game?'<span>No lives — game over · 생명이 없어 게임 오버</span>':hold?'<span>Level clear! Waiting for your opponent.<br>레벨 클리어! 상대가 이 레벨을 끝내면<br>함께 다음 레벨을 시작해요.</span>':'';
+      if(msg&&msg._v!==want){msg._v=want;msg.innerHTML=want;msg.classList.toggle('low',hold)}
     }else{
       for(const s of [0,1]){if(ps[s])mirrors[s].feed(ps[s].presence);mirrors[s].frame(cw[s],sec,dt,{msg:'WAITING...'})}
     }
@@ -1425,6 +1436,7 @@ const MZ=(()=>{
     if(st.st==='ready'){ctx.fillStyle='#FFE45C';ctx.fillText(opt&&opt.msg||'GET READY!',112,OY+17*TS+4)}
     if(st.st==='wait'){ctx.fillStyle='#9FE6FF';ctx.fillText(opt&&opt.msg||'WAITING...',112,OY+17*TS+4)}
     if(st.st==='over'){ctx.fillStyle='#FF4D6D';ctx.fillText('GAME  OVER',112,OY+17*TS+4)}
+    if(st.st==='hold'){ctx.fillStyle='#FFE45C';ctx.fillText('LEVEL CLEAR!',112,OY+11*TS+4);ctx.fillStyle='#9FE6FF';ctx.fillText('WAITING...',112,OY+17*TS+4)}
     hud(ctx,st);
   }
   const hex=bits=>{let s='';for(let k=0;k<bits.length;k+=4){let v=0;for(let j=0;j<4;j++)v|=(bits[k+j]?1:0)<<j;s+=v.toString(16)}return s};
@@ -1447,6 +1459,8 @@ const MZ=(()=>{
     const tileOf=o=>[Math.floor(o.x/TS),Math.floor(o.y/TS)];
     function setDir(d){if(DIR[d])pl.next=d}
     function begin(){if(phase==='wait'){phase='ready';phaseT=2.6}}
+    /* 1v1: after a clear the board holds until the opponent clears the same level, then both start the next one together */
+    function advance(){if(phase==='hold'){level++;resetLevel();phase='ready';phaseT=2}}
     function stepPlayer(s){
       const [c,r]=tileOf(pl),cx=c*TS+4,cy=r*TS+4;
       if(pl.next===OPP[pl.dir]){pl.dir=pl.next;pl.stopped=false}
@@ -1546,10 +1560,10 @@ const MZ=(()=>{
     }
     function update(dt){
       t+=dt;if(popT>0){popT-=dt;if(popT<=0)pop=null}
-      if(phase==='wait'||phase==='over')return;
+      if(phase==='wait'||phase==='over'||phase==='hold')return;
       if(phase==='ready'){phaseT-=dt;if(phaseT<=0)phase='play';return}
       if(phase==='dying'){phaseT-=dt;if(phaseT<=0){lives--;if(lives<=0){lives=0;phase='over';opts.onOver&&opts.onOver(score,level)}else{resetPos();useGlobal=true;gCnt=0;phase='ready';phaseT=1.8}}return}
-      if(phase==='clear'){phaseT-=dt;if(phaseT<=0){level++;resetLevel();phase='ready';phaseT=2}return}
+      if(phase==='clear'){phaseT-=dt;if(phaseT<=0){if(opts.gate)phase='hold';else{level++;resetLevel();phase='ready';phaseT=2}}return}
       if(pauseT>0){pauseT-=dt;return}
       if(frOn){frT-=dt;if(frT<=0){frOn=false;for(const e of en)e.fright=false}}
       else{modeT+=dt;if(modeT>=P.modes[modeIdx]){modeT=0;modeIdx=Math.min(modeIdx+1,P.modes.length-1);reverseAll()}}
@@ -1566,7 +1580,7 @@ const MZ=(()=>{
     function view(){return{st:phase,lv:level,sc:score,li:lives,p:[pl.x,pl.y,DI[pl.dir],phase==='dying'?1-phaseT/1.8:0],e:en.map(e=>[e.x,e.y,ecode(e),DI[e.dir]]),d:dots,b:bonusT>0?1:0,bk:P.bonus[0],pop:pause()?pop:pop}}
     const pause=()=>pauseT>0;
     function net(){const r=v=>Math.round(v*10)/10;return{st:phase,lv:level,sc:score,li:lives,p:[r(pl.x),r(pl.y),DI[pl.dir],phase==='dying'?Math.round((1-phaseT/1.8)*100)/100:0],e:en.map(e=>[r(e.x),r(e.y),ecode(e),DI[e.dir]]),d:hex(dots),b:bonusT>0?1:0,bk:P.bonus[0],pop:pop?[r(pop[0]),r(pop[1]),pop[2]]:0}}
-    return{update,view,net,setDir,begin,get phase(){return phase},get score(){return score},get level(){return level},get t(){return t}};
+    return{update,view,net,setDir,begin,advance,get phase(){return phase},get score(){return score},get level(){return level},get t(){return t}};
   }
 
   /* mirror of a remote game: draws the latest network state, smoothing the movers */
